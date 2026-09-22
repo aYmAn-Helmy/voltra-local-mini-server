@@ -4,7 +4,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import re
 import threading
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
 from .tcp_server import MTTLServer
 
@@ -44,14 +44,15 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            if self.path == "/":
+            path = urlsplit(self.path).path
+            if path == "/":
                 return self._send_text(200, DASHBOARD, "text/html; charset=utf-8")
-            if self.path == "/health":
+            if path == "/health":
                 return self._json(200, {"ok": True})
-            if self.path == "/api/devices":
+            if path == "/api/devices":
                 self._require_auth()
                 return self._json(200, {"devices": self.app.mttl.list_devices()})
-            match = _DEVICE_RE.match(self.path)
+            match = _DEVICE_RE.match(path)
             if match:
                 self._require_auth()
                 return self._json(200, self.app.mttl.get(unquote(match.group(1))).snapshot())
@@ -65,18 +66,19 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            path = urlsplit(self.path).path
             self._require_auth()
-            match = _REFRESH_RE.match(self.path)
+            match = _REFRESH_RE.match(path)
             if match:
                 return self._json(200, self.app.mttl.get(unquote(match.group(1))).query_info())
-            match = _STATE_RE.match(self.path)
+            match = _STATE_RE.match(path)
             if match:
                 body = self._read_json()
                 if not isinstance(body.get("on"), bool):
                     return self._json(400, {"error": "JSON field 'on' must be boolean"})
                 session = self.app.mttl.get(unquote(match.group(1)))
                 return self._json(200, session.set_outlet(int(match.group(2)), body["on"]))
-            match = _ACTION_RE.match(self.path)
+            match = _ACTION_RE.match(path)
             if match:
                 session = self.app.mttl.get(unquote(match.group(1)))
                 return self._json(200, session.set_outlet(int(match.group(2)), match.group(3) == "on"))
