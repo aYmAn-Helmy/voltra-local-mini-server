@@ -179,6 +179,8 @@ class APIHandler(BaseHTTPRequestHandler):
             return self._json(404, {"error": str(exc)})
         except TimeoutError as exc:
             return self._json(504, {"error": str(exc)})
+        except ProvisioningError as exc:
+            return self._json(502, {"error": str(exc)})
         except (ValueError, json.JSONDecodeError) as exc:
             return self._json(400, {"error": str(exc)})
         except PermissionError as exc:
