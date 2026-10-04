@@ -45,6 +45,11 @@ class DeviceSession:
         self.wifi_rssi_dbm: int | None = None
         self.outlets: dict[int, OutletInfo] = {}
         self._last_diagnostics_monotonic = 0.0
+        self.command_count = 0
+        self.command_failures = 0
+        self.last_command_latency_ms: float | None = None
+        self.last_command_confirmed: bool | None = None
+        self.last_command_at: str | None = None
         self.closed = threading.Event()
         self._send_lock = threading.Lock()
         self._command_lock = threading.Lock()
@@ -82,6 +87,7 @@ class DeviceSession:
                 self._pending_event.set()
 
     def snapshot(self) -> dict:
+        server_metrics = self.server.device_metrics(self.mac) if self.mac else {}
         return {
             "mac": self.mac,
             "model": self.boot.model if self.boot else None,
@@ -96,15 +102,63 @@ class DeviceSession:
             "wifi_rssi_dbm": self.wifi_rssi_dbm,
             "last_event_at": self.last_event_at,
             "last_event": self.last_event,
+            "metrics": {
+                **server_metrics,
+                "command_count": self.command_count,
+                "command_failures": self.command_failures,
+                "last_command_latency_ms": self.last_command_latency_ms,
+                "last_command_confirmed": self.last_command_confirmed,
+                "last_command_at": self.last_command_at,
+            },
             "outlets": [self.outlets[idx].to_dict() for idx in sorted(self.outlets)],
         }
 
     def set_outlet(self, outlet: int, on: bool) -> dict:
         command = format_onoff(outlet, on)
-        self.request(command, lambda frame: frame.strip() == command)
-        current = self.outlets.get(outlet)
-        if current:
-            current.relay = on
+        last_error: Exception | None = None
+        for attempt in range(1, self.server.command_attempts + 1):
+            try:
+                self.request(command, lambda frame: frame.strip() == command)
+                last_error = None
+                break
+            except (TimeoutError, RuntimeError, OSError) as exc:
+                last_error = exc
+                if attempt < self.server.command_attempts:
+                    time.sleep(0.12)
+        if last_error is not None:
+            raise last_error
+
+        confirmed = False
+        if self.server.confirm_delay > 0:
+            time.sleep(self.server.confirm_delay)
+        try:
+            self.query_info()
+            current = self.outlets.get(outlet)
+            confirmed = bool(current and current.relay == on)
+        except Exception:
+            current = self.outlets.get(outlet)
+            if current:
+                current.relay = on
+
+        self.last_command_confirmed = confirmed
+        self.last_command_at = utc_now()
+        if self.server.audit:
+            self.server.audit.append(
+                "device",
+                "set_outlet",
+                mac=self.mac,
+                outlet=outlet,
+                on=on,
+                confirmed=confirmed,
+            )
+        if self.server.event_bus:
+            self.server.event_bus.publish(
+                "outlet_command",
+                mac=self.mac,
+                outlet=outlet,
+                on=on,
+                confirmed=confirmed,
+            )
         return self.snapshot()
 
     def query_info(self) -> dict:
@@ -127,29 +181,38 @@ class DeviceSession:
     def request(self, command: str, predicate: Callable[[str], bool]) -> str:
         if self.closed.is_set():
             raise RuntimeError("device is offline")
-        with self._command_lock:
-            event = threading.Event()
-            with self._pending_lock:
-                self._pending_predicate = predicate
-                self._pending_event = event
-                self._pending_result = None
-            self._send_line(command)
-            if not event.wait(self.server.response_timeout):
+        started = time.monotonic()
+        self.command_count += 1
+        try:
+            with self._command_lock:
+                event = threading.Event()
                 with self._pending_lock:
+                    self._pending_predicate = predicate
+                    self._pending_event = event
+                    self._pending_result = None
+                self._send_line(command)
+                if not event.wait(self.server.response_timeout):
+                    with self._pending_lock:
+                        self._pending_predicate = None
+                        self._pending_event = None
+                        self._pending_result = None
+                    raise TimeoutError(f"timeout waiting for response to {command!r}")
+                if self.closed.is_set():
+                    raise RuntimeError("device disconnected")
+                with self._pending_lock:
+                    result = self._pending_result
                     self._pending_predicate = None
                     self._pending_event = None
                     self._pending_result = None
-                raise TimeoutError(f"timeout waiting for response to {command!r}")
-            if self.closed.is_set():
-                raise RuntimeError("device disconnected")
-            with self._pending_lock:
-                result = self._pending_result
-                self._pending_predicate = None
-                self._pending_event = None
-                self._pending_result = None
-            if result is None:
-                raise RuntimeError("request ended without a response")
-            return result
+                if result is None:
+                    raise RuntimeError("request ended without a response")
+                return result
+        except Exception:
+            self.command_failures += 1
+            raise
+        finally:
+            self.last_command_latency_ms = round((time.monotonic() - started) * 1000.0, 2)
+            self.last_command_at = utc_now()
 
     def _send_line(self, line: str) -> None:
         payload = (line + "\r\n").encode("utf-8")
@@ -214,6 +277,8 @@ class DeviceSession:
         if info is not None:
             self.outlets = {item.channel: item for item in info}
             self.last_info_at = utc_now()
+            if self.server.event_bus:
+                self.server.event_bus.publish("device_state", mac=self.mac, snapshot=self.snapshot())
 
         power_report = parse_power_report(frame)
         if power_report is not None:
@@ -238,6 +303,14 @@ class DeviceSession:
                 "on": on,
                 "received_at": event_at,
             }
+            if self.server.event_bus:
+                self.server.event_bus.publish(
+                    "physical_onoff",
+                    mac=self.mac,
+                    outlet=outlet,
+                    on=on,
+                    received_at=event_at,
+                )
 
         onoff = parse_onoff(frame)
         if onoff:
@@ -269,6 +342,8 @@ class MTTLServer:
     def __init__(self, host: str = "0.0.0.0", port: int = 10086, poll_interval: float = 10.0,
                  response_timeout: float = 3.0, boot_timeout: float = 10.0,
                  diagnostics_interval: float = 30.0,
+                 command_attempts: int = 2, confirm_delay: float = 0.15,
+                 event_bus=None, audit=None,
                  on_device_seen: Callable[[dict], None] | None = None):
         self.host = host
         self.port = port
@@ -276,7 +351,12 @@ class MTTLServer:
         self.response_timeout = response_timeout
         self.boot_timeout = boot_timeout
         self.diagnostics_interval = diagnostics_interval
+        self.command_attempts = max(1, min(int(command_attempts), 5))
+        self.confirm_delay = max(0.0, min(float(confirm_delay), 2.0))
+        self.event_bus = event_bus
+        self.audit = audit
         self.on_device_seen = on_device_seen
+        self._device_stats: dict[str, dict] = {}
         self._listen: socket.socket | None = None
         self._stop = threading.Event()
         self._sessions: dict[str, DeviceSession] = {}
@@ -309,9 +389,16 @@ class MTTLServer:
         assert session.mac
         with self._lock:
             previous = self._sessions.get(session.mac)
+            stats = self._device_stats.setdefault(session.mac, {"connections": 0, "disconnects": 0, "reconnects": 0})
+            stats["connections"] += 1
+            if stats["connections"] > 1:
+                stats["reconnects"] += 1
+            stats["last_connected_at"] = utc_now()
             self._sessions[session.mac] = session
         if previous and previous is not session:
             previous.close()
+        if self.event_bus:
+            self.event_bus.publish("device_online", mac=session.mac, snapshot=session.snapshot())
         if self.on_device_seen:
             try:
                 self.on_device_seen(session.snapshot())
@@ -321,10 +408,23 @@ class MTTLServer:
     def unregister(self, session: DeviceSession) -> None:
         if not session.mac:
             return
+        removed = False
         with self._lock:
             if self._sessions.get(session.mac) is session:
                 del self._sessions[session.mac]
+                stats = self._device_stats.setdefault(session.mac, {"connections": 0, "disconnects": 0, "reconnects": 0})
+                stats["disconnects"] += 1
+                stats["last_disconnected_at"] = utc_now()
+                removed = True
                 print(f"[TCP] {session.mac} disconnected")
+        if removed and self.event_bus:
+            self.event_bus.publish("device_offline", mac=session.mac)
+
+    def device_metrics(self, mac: str | None) -> dict:
+        if not mac:
+            return {}
+        with self._lock:
+            return dict(self._device_stats.get(mac, {}))
 
     def get(self, mac: str) -> DeviceSession:
         normalized = mac.replace(":", "").replace("-", "").upper()

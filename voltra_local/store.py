@@ -396,3 +396,25 @@ class ConfigStore:
     def mappings(self) -> dict[str, dict]:
         with self._lock:
             return {key: dict(value) for key, value in self._data["mappings"].items()}
+
+    def export_data(self) -> dict:
+        with self._lock:
+            return json.loads(json.dumps(self._data))
+
+    def import_data(self, value: dict) -> None:
+        if not isinstance(value, dict):
+            raise ValueError("config backup must be an object")
+        strips = value.get("strips", {})
+        ps4_devices = value.get("ps4_devices", {})
+        mappings = value.get("mappings", {})
+        if not isinstance(strips, dict) or not isinstance(ps4_devices, dict) or not isinstance(mappings, dict):
+            raise ValueError("invalid config backup")
+        clean = {
+            "version": 2,
+            "strips": strips,
+            "ps4_devices": ps4_devices,
+            "mappings": mappings,
+        }
+        with self._lock:
+            self._data = clean
+            self._save_locked()

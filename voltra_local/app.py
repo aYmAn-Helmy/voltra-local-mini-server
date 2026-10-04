@@ -6,10 +6,14 @@ import signal
 import threading
 
 from . import __version__
+from .audit import AuditLog
+from .automation import AutomationEngine
 from .demo_device import run_demo_device
+from .events import EventBus
 from .http_api import start_http
 from .store import ConfigStore
 from .tcp_server import MTTLServer
+from .telemetry import TelemetryStore
 
 
 def env_float(name: str, default: float) -> float:
@@ -30,28 +34,49 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 def main() -> None:
-    bind = os.getenv("VOLTRA_BIND", "0.0.0.0")
+    legacy_bind = os.getenv("VOLTRA_BIND")
+    tcp_bind = os.getenv("VOLTRA_TCP_BIND", legacy_bind or "0.0.0.0")
+    http_bind = os.getenv("VOLTRA_HTTP_BIND", legacy_bind or "127.0.0.1")
     tcp_port = env_int("VOLTRA_TCP_PORT", 10086)
     http_port = env_int("PORT", env_int("VOLTRA_HTTP_PORT", 8086))
     poll_interval = env_float("VOLTRA_POLL_INTERVAL", 10.0)
     response_timeout = env_float("VOLTRA_RESPONSE_TIMEOUT", 3.0)
     diagnostics_interval = env_float("VOLTRA_DIAGNOSTICS_INTERVAL", 30.0)
+    telemetry_interval = env_float("VOLTRA_TELEMETRY_INTERVAL", 60.0)
+    command_attempts = env_int("VOLTRA_COMMAND_ATTEMPTS", 2)
+    confirm_delay = env_float("VOLTRA_COMMAND_CONFIRM_DELAY", 0.15)
+    rate_limit = env_int("VOLTRA_RATE_LIMIT_PER_MINUTE", 60)
     api_token = os.getenv("VOLTRA_API_TOKEN", "")
     cors_origin = os.getenv("VOLTRA_CORS_ORIGIN", "*")
+    allow_insecure_remote = env_bool("VOLTRA_ALLOW_INSECURE_REMOTE", False)
     demo = env_bool("VOLTRA_DEMO", False)
     data_dir = Path(os.getenv("VOLTRA_DATA_DIR", "data"))
     store = ConfigStore(data_dir / "voltra.json")
 
+    loopback_hosts = {"127.0.0.1", "::1", "localhost"}
+    if http_bind not in loopback_hosts and not api_token and not allow_insecure_remote:
+        raise RuntimeError(
+            "remote HTTP bind requires VOLTRA_API_TOKEN; "
+            "set VOLTRA_ALLOW_INSECURE_REMOTE=1 only on a trusted LAN"
+        )
+
     print(f"[APP] Voltra Local Mini Server v{__version__}")
     print(f"[APP] demo={'ON' if demo else 'OFF'}")
     print(f"[APP] data={store.path}")
+    print(f"[APP] TCP={tcp_bind}:{tcp_port} HTTP={http_bind}:{http_port}")
 
+    event_bus = EventBus()
+    audit = AuditLog(data_dir / "audit.jsonl")
     mttl = MTTLServer(
-        host=bind,
+        host=tcp_bind,
         port=tcp_port,
         poll_interval=poll_interval,
         response_timeout=response_timeout,
         diagnostics_interval=diagnostics_interval,
+        command_attempts=command_attempts,
+        confirm_delay=confirm_delay,
+        event_bus=event_bus,
+        audit=audit,
         on_device_seen=store.record_strip,
     )
     mttl.start()
@@ -64,7 +89,37 @@ def main() -> None:
         ).start()
         print("[DEMO] fake MTTL-W01 enabled")
 
-    http = start_http(mttl, bind, http_port, store=store, api_token=api_token, cors_origin=cors_origin)
+    telemetry = TelemetryStore(data_dir / "telemetry.jsonl", sample_interval=telemetry_interval)
+    telemetry.start(mttl.list_devices)
+
+    def automation_command(mac: str, outlet: int, on: bool, source: str) -> dict:
+        store.require_strip_controllable(mac)
+        result = mttl.get(mac).set_outlet(outlet, on)
+        audit.append("automation", "command_executed", mac=mac, outlet=outlet, on=on, source=source)
+        return result
+
+    automation = AutomationEngine(
+        data_dir / "automation.json",
+        snapshot_provider=mttl.list_devices,
+        command_executor=automation_command,
+        audit=audit,
+        event_bus=event_bus,
+    )
+    automation.start()
+
+    http = start_http(
+        mttl,
+        http_bind,
+        http_port,
+        store=store,
+        api_token=api_token,
+        cors_origin=cors_origin,
+        automation=automation,
+        telemetry=telemetry,
+        audit=audit,
+        event_bus=event_bus,
+        rate_limit_per_minute=rate_limit,
+    )
     stop = threading.Event()
 
     def shutdown(*_):
@@ -72,6 +127,8 @@ def main() -> None:
             return
         stop.set()
         print("[APP] shutting down")
+        automation.stop()
+        telemetry.stop()
         http.shutdown()
         http.server_close()
         mttl.stop()

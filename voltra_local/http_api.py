@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+from collections import defaultdict, deque
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import queue
 import re
 import threading
-from urllib.parse import unquote, urlsplit
+import time
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from . import __version__
 from .dashboard import DASHBOARD
+from .health import health_from_snapshot
 from .provisioner import ProvisioningError, provision_device
 from .store import ConfigStore
 from .tcp_server import MTTLServer
@@ -30,6 +35,8 @@ _V_PS4_RE = re.compile(r"^/voltra/api/ps4/([^/]+)$")
 _V_MAPPING_RE = re.compile(r"^/voltra/api/ps4/([^/]+)/power-mapping$")
 _V_POWER_RE = re.compile(r"^/voltra/api/ps4/([^/]+)/power$")
 _V_POWER_ACTION_RE = re.compile(r"^/voltra/api/ps4/([^/]+)/power/(on|off)$")
+_V_SCHEDULE_RE = re.compile(r"^/voltra/api/schedules/([^/]+)$")
+_V_RULE_RE = re.compile(r"^/voltra/api/rules/([^/]+)$")
 
 
 def _decoded(value: str) -> str:
@@ -52,7 +59,9 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
-            path = urlsplit(self.path).path
+            split = urlsplit(self.path)
+            path = split.path
+            query = parse_qs(split.query)
             if path == "/":
                 self.send_response(302)
                 self.send_header("Location", "/voltra")
@@ -65,6 +74,8 @@ class APIHandler(BaseHTTPRequestHandler):
                 return self._json(200, {"ok": True, "version": __version__})
 
             self._require_auth()
+            if path == "/voltra/api/events":
+                return self._sse()
             if path == "/api/status":
                 devices = self.app.mttl.list_devices()
                 return self._json(200, {"ok": True, "version": __version__, "device_count": len(devices)})
@@ -76,6 +87,30 @@ class APIHandler(BaseHTTPRequestHandler):
 
             if path == "/voltra/api/overview":
                 return self._json(200, self.app.overview())
+            if path == "/voltra/api/automation":
+                return self._json(200, self.app.automation.snapshot() if self.app.automation else {"schedules": {}, "rules": {}, "queue": []})
+            if path == "/voltra/api/energy":
+                if not self.app.telemetry:
+                    return self._json(503, {"error": "telemetry disabled"})
+                mac = str((query.get("mac") or [""])[0])
+                if not mac:
+                    return self._json(400, {"error": "mac query parameter is required"})
+                mac = self.app.store.normalize_mac(mac)
+                try:
+                    hours = float((query.get("hours") or ["24"])[0])
+                except ValueError:
+                    return self._json(400, {"error": "hours must be numeric"})
+                return self._json(200, self.app.telemetry.summary(mac, hours))
+            if path == "/voltra/api/audit":
+                if not self.app.audit:
+                    return self._json(200, {"events": []})
+                try:
+                    limit = int((query.get("limit") or ["100"])[0])
+                except ValueError:
+                    return self._json(400, {"error": "limit must be integer"})
+                return self._json(200, {"events": self.app.audit.recent(limit)})
+            if path == "/voltra/api/backup":
+                return self._json(200, self.app.backup_payload())
             if path == "/voltra/api/strips":
                 return self._json(200, {"strips": self.app.list_strips()})
             if path == "/voltra/api/ps4":
@@ -103,6 +138,9 @@ class APIHandler(BaseHTTPRequestHandler):
         try:
             path = urlsplit(self.path).path
             self._require_auth()
+            if not self.app.allow_write(self.client_address[0]):
+                return self._json(429, {"error": "rate limit exceeded"})
+            self.app.audit_request("POST", path, self.client_address[0])
 
             match = _REFRESH_RE.match(path)
             if match:
@@ -118,6 +156,18 @@ class APIHandler(BaseHTTPRequestHandler):
             if match:
                 return self._json(200, self.app.mttl.get(_decoded(match.group(1))).set_outlet(int(match.group(2)), match.group(3) == "on"))
 
+            if path == "/voltra/api/schedules":
+                if not self.app.automation:
+                    return self._json(503, {"error": "automation disabled"})
+                return self._json(201, self.app.automation.create_schedule(self._read_json()))
+            if path == "/voltra/api/rules":
+                if not self.app.automation:
+                    return self._json(503, {"error": "automation disabled"})
+                return self._json(201, self.app.automation.create_rule(self._read_json()))
+            if path == "/voltra/api/restore":
+                body = self._read_json()
+                self.app.restore_payload(body)
+                return self._json(200, {"ok": True})
             if path == "/voltra/api/ps4":
                 body = self._read_json()
                 device_id = str(body.get("id") or "")
@@ -192,6 +242,9 @@ class APIHandler(BaseHTTPRequestHandler):
         try:
             path = urlsplit(self.path).path
             self._require_auth()
+            if not self.app.allow_write(self.client_address[0]):
+                return self._json(429, {"error": "rate limit exceeded"})
+            self.app.audit_request("PUT", path, self.client_address[0])
             body = self._read_json()
 
             match = _V_STRIP_RE.match(path)
@@ -226,6 +279,23 @@ class APIHandler(BaseHTTPRequestHandler):
         try:
             path = urlsplit(self.path).path
             self._require_auth()
+            if not self.app.allow_write(self.client_address[0]):
+                return self._json(429, {"error": "rate limit exceeded"})
+            self.app.audit_request("DELETE", path, self.client_address[0])
+            match = _V_SCHEDULE_RE.match(path)
+            if match:
+                if not self.app.automation:
+                    return self._json(503, {"error": "automation disabled"})
+                return self._json(200, {"ok": True, "removed": self.app.automation.delete_schedule(_decoded(match.group(1)))})
+            match = _V_RULE_RE.match(path)
+            if match:
+                if not self.app.automation:
+                    return self._json(503, {"error": "automation disabled"})
+                return self._json(200, {"ok": True, "removed": self.app.automation.delete_rule(_decoded(match.group(1)))})
+            if path == "/voltra/api/queue":
+                if not self.app.automation:
+                    return self._json(503, {"error": "automation disabled"})
+                return self._json(200, {"ok": True, "cleared": self.app.automation.clear_queue()})
             match = _V_MAPPING_RE.match(path)
             if match:
                 device_id = _decoded(match.group(1))
@@ -248,6 +318,32 @@ class APIHandler(BaseHTTPRequestHandler):
             return self._json(401, {"error": str(exc)})
         except Exception as exc:
             return self._json(500, {"error": str(exc)})
+
+    def _sse(self):
+        if not self.app.event_bus:
+            return self._json(503, {"error": "event stream disabled"})
+        target = self.app.event_bus.subscribe()
+        try:
+            self.send_response(200)
+            self._common_headers()
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Connection", "keep-alive")
+            self.end_headers()
+            self.wfile.write(b"retry: 2000\n\n")
+            self.wfile.flush()
+            while True:
+                try:
+                    event = target.get(timeout=15)
+                    payload = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
+                    packet = f"id: {event.get('id', '')}\nevent: {event.get('type', 'update')}\ndata: {payload}\n\n".encode("utf-8")
+                except queue.Empty:
+                    packet = b": heartbeat\n\n"
+                self.wfile.write(packet)
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+        finally:
+            self.app.event_bus.unsubscribe(target)
 
     def _require_auth(self):
         token = self.app.api_token
@@ -295,12 +391,71 @@ class APIHandler(BaseHTTPRequestHandler):
 class VoltraHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address, mttl: MTTLServer, store: ConfigStore, api_token: str = "", cors_origin: str = "*"):
+    def __init__(
+        self,
+        address,
+        mttl: MTTLServer,
+        store: ConfigStore,
+        api_token: str = "",
+        cors_origin: str = "*",
+        *,
+        automation=None,
+        telemetry=None,
+        audit=None,
+        event_bus=None,
+        rate_limit_per_minute: int = 60,
+    ):
         self.mttl = mttl
         self.store = store
         self.api_token = api_token
         self.cors_origin = cors_origin
+        self.automation = automation
+        self.telemetry = telemetry
+        self.audit = audit
+        self.event_bus = event_bus
+        self.rate_limit_per_minute = max(1, min(int(rate_limit_per_minute), 10000))
+        self._rate_lock = threading.RLock()
+        self._rate_windows: dict[str, deque] = defaultdict(deque)
         super().__init__(address, APIHandler)
+
+    def allow_write(self, client_ip: str) -> bool:
+        now = time.monotonic()
+        with self._rate_lock:
+            window = self._rate_windows[str(client_ip)]
+            while window and now - window[0] > 60.0:
+                window.popleft()
+            if len(window) >= self.rate_limit_per_minute:
+                return False
+            window.append(now)
+            return True
+
+    def audit_request(self, method: str, path: str, client_ip: str) -> None:
+        if self.audit:
+            self.audit.append("api", "write_request", method=method, path=path, client_ip=client_ip)
+
+    def backup_payload(self) -> dict:
+        return {
+            "format": "voltra-backup-v1",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "version": __version__,
+            "config": self.store.export_data(),
+            "automation": self.automation.snapshot() if self.automation else None,
+        }
+
+    def restore_payload(self, value: dict) -> None:
+        if value.get("format") != "voltra-backup-v1":
+            raise ValueError("unsupported backup format")
+        config = value.get("config")
+        if not isinstance(config, dict):
+            raise ValueError("backup config is missing")
+        self.store.import_data(config)
+        automation = value.get("automation")
+        if automation is not None and self.automation:
+            self.automation.import_data(automation)
+        if self.audit:
+            self.audit.append("backup", "restore_completed")
+        if self.event_bus:
+            self.event_bus.publish("restore_completed")
 
     def list_strips(self) -> list[dict]:
         live = {str(item["mac"]).upper(): item for item in self.mttl.list_devices() if item.get("mac")}
@@ -317,6 +472,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
                 device_id for device_id, mapping in mappings.items() if mapping.get("mac") == mac
             ]
             outlets = (current or {}).get("outlets", [])
+            health = health_from_snapshot(current) if current else {"score": 0, "status": "offline", "reasons": ["device_offline"]}
             item = {
                 "mac": mac,
                 "name": meta.get("name", f"Voltra {mac[-4:]}"),
@@ -334,6 +490,8 @@ class VoltraHTTPServer(ThreadingHTTPServer):
                 "wifi_rssi_dbm": (current or {}).get("wifi_rssi_dbm"),
                 "last_event_at": (current or {}).get("last_event_at"),
                 "last_event": (current or {}).get("last_event"),
+                "health": health,
+                "metrics": (current or {}).get("metrics") or {},
                 "outlets": outlets,
                 "mapped_devices": mapped_devices,
                 "mapped_count": len(mapped_devices),
@@ -422,9 +580,26 @@ def start_http(
     store: ConfigStore | None = None,
     api_token: str = "",
     cors_origin: str = "*",
+    *,
+    automation=None,
+    telemetry=None,
+    audit=None,
+    event_bus=None,
+    rate_limit_per_minute: int = 60,
 ):
     store = store or ConfigStore("data/voltra.json")
-    server = VoltraHTTPServer((host, port), mttl, store=store, api_token=api_token, cors_origin=cors_origin)
+    server = VoltraHTTPServer(
+        (host, port),
+        mttl,
+        store=store,
+        api_token=api_token,
+        cors_origin=cors_origin,
+        automation=automation,
+        telemetry=telemetry,
+        audit=audit,
+        event_bus=event_bus,
+        rate_limit_per_minute=rate_limit_per_minute,
+    )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     print(f"[HTTP] dashboard: http://{host}:{port}/voltra")

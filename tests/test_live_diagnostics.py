@@ -8,6 +8,9 @@ class FakeServer:
     response_timeout = 0.1
     boot_timeout = 1.0
 
+    def device_metrics(self, mac):
+        return {}
+
 
 class FakeSocket:
     pass
