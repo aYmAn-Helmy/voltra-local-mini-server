@@ -35,6 +35,7 @@ def main() -> None:
     http_port = env_int("PORT", env_int("VOLTRA_HTTP_PORT", 8086))
     poll_interval = env_float("VOLTRA_POLL_INTERVAL", 10.0)
     response_timeout = env_float("VOLTRA_RESPONSE_TIMEOUT", 3.0)
+    diagnostics_interval = env_float("VOLTRA_DIAGNOSTICS_INTERVAL", 30.0)
     api_token = os.getenv("VOLTRA_API_TOKEN", "")
     cors_origin = os.getenv("VOLTRA_CORS_ORIGIN", "*")
     demo = env_bool("VOLTRA_DEMO", False)
@@ -50,6 +51,7 @@ def main() -> None:
         port=tcp_port,
         poll_interval=poll_interval,
         response_timeout=response_timeout,
+        diagnostics_interval=diagnostics_interval,
         on_device_seen=store.record_strip,
     )
     mttl.start()

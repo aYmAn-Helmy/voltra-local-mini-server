@@ -6,11 +6,16 @@ import re
 BOOTINFO_PREFIX = "up:bootinfo:"
 GETINFO_PREFIX = "up:getinfo:"
 GETINFO_REQUEST = "up:getinfo:all"
+POWER_VOLTAGE_REQUEST = "up:power_report:1:vol"
+WIFI_RSSI_REQUEST = "up:query:wifirssi"
 
 _BOOTINFO_RE = re.compile(
     r"^up:bootinfo:([^;\r\n]{1,32});([0-9a-fA-F]{12});([0-9a-fA-F]{12});([^;\r\n]{1,64});connect$"
 )
 _ONOFF_RE = re.compile(r"^up:(?:event:)?onoff:([1-4]):(on|off)$")
+_EVENT_ONOFF_RE = re.compile(r"^up:event:onoff:([0-4]):(on|off)$")
+_POWER_REPORT_RE = re.compile(r"^up:power_report:([1-5]):(-?\\d+)$")
+_QUERY_VALUE_RE = re.compile(r"^up:query:(-?\\d+)$")
 
 
 @dataclass(frozen=True)
@@ -70,6 +75,30 @@ def parse_onoff(frame: str) -> tuple[int, bool] | None:
     if not match:
         return None
     return int(match.group(1)), match.group(2) == "on"
+
+
+def parse_event_onoff(frame: str) -> tuple[int, bool] | None:
+    match = _EVENT_ONOFF_RE.match(frame.strip())
+    if not match:
+        return None
+    return int(match.group(1)), match.group(2) == "on"
+
+
+def parse_power_report(frame: str) -> tuple[int, int] | None:
+    match = _POWER_REPORT_RE.match(frame.strip())
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
+def parse_wifi_rssi(frame: str) -> int | None:
+    match = _QUERY_VALUE_RE.match(frame.strip())
+    if not match:
+        return None
+    value = int(match.group(1))
+    if value < -127 or value > 0:
+        return None
+    return value
 
 
 def parse_getinfo(frame: str) -> list[OutletInfo] | None:

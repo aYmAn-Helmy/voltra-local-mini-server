@@ -10,13 +10,18 @@ from .protocol import (
     BOOTINFO_PREFIX,
     GETINFO_PREFIX,
     GETINFO_REQUEST,
+    POWER_VOLTAGE_REQUEST,
+    WIFI_RSSI_REQUEST,
     BootInfo,
     OutletInfo,
     format_onoff,
     looks_like_incomplete_getinfo,
     parse_boot_info,
+    parse_event_onoff,
     parse_getinfo,
     parse_onoff,
+    parse_power_report,
+    parse_wifi_rssi,
 )
 
 
@@ -33,7 +38,13 @@ class DeviceSession:
         self.connected_at = utc_now()
         self.last_seen_at = self.connected_at
         self.last_info_at: str | None = None
+        self.last_diagnostics_at: str | None = None
+        self.last_event_at: str | None = None
+        self.last_event: dict | None = None
+        self.voltage_v: float | None = None
+        self.wifi_rssi_dbm: int | None = None
         self.outlets: dict[int, OutletInfo] = {}
+        self._last_diagnostics_monotonic = 0.0
         self.closed = threading.Event()
         self._send_lock = threading.Lock()
         self._command_lock = threading.Lock()
@@ -80,6 +91,11 @@ class DeviceSession:
             "connected_at": self.connected_at,
             "last_seen_at": self.last_seen_at,
             "last_info_at": self.last_info_at,
+            "last_diagnostics_at": self.last_diagnostics_at,
+            "voltage_v": self.voltage_v,
+            "wifi_rssi_dbm": self.wifi_rssi_dbm,
+            "last_event_at": self.last_event_at,
+            "last_event": self.last_event,
             "outlets": [self.outlets[idx].to_dict() for idx in sorted(self.outlets)],
         }
 
@@ -93,6 +109,19 @@ class DeviceSession:
 
     def query_info(self) -> dict:
         self.request(GETINFO_REQUEST, lambda frame: parse_getinfo(frame) is not None)
+        return self.snapshot()
+
+    def query_diagnostics(self) -> dict:
+        self.request(
+            POWER_VOLTAGE_REQUEST,
+            lambda frame: bool(
+                (value := parse_power_report(frame))
+                and 50_000 <= value[1] <= 300_000
+            ),
+        )
+        self.request(WIFI_RSSI_REQUEST, lambda frame: parse_wifi_rssi(frame) is not None)
+        self.last_diagnostics_at = utc_now()
+        self._last_diagnostics_monotonic = time.monotonic()
         return self.snapshot()
 
     def request(self, command: str, predicate: Callable[[str], bool]) -> str:
@@ -186,6 +215,30 @@ class DeviceSession:
             self.outlets = {item.channel: item for item in info}
             self.last_info_at = utc_now()
 
+        power_report = parse_power_report(frame)
+        if power_report is not None:
+            _, raw_value = power_report
+            if 50_000 <= raw_value <= 300_000:
+                self.voltage_v = round(raw_value / 1000.0, 1)
+                self.last_diagnostics_at = utc_now()
+
+        rssi = parse_wifi_rssi(frame)
+        if rssi is not None:
+            self.wifi_rssi_dbm = rssi
+            self.last_diagnostics_at = utc_now()
+
+        event_onoff = parse_event_onoff(frame)
+        if event_onoff is not None:
+            outlet, on = event_onoff
+            event_at = utc_now()
+            self.last_event_at = event_at
+            self.last_event = {
+                "type": "physical_onoff",
+                "outlet": outlet,
+                "on": on,
+                "received_at": event_at,
+            }
+
         onoff = parse_onoff(frame)
         if onoff:
             outlet, on = onoff
@@ -206,17 +259,23 @@ class DeviceSession:
             self.query_info()
         except Exception as exc:
             print(f"[TCP] initial getinfo failed for {self.mac}: {exc}")
+        try:
+            self.query_diagnostics()
+        except Exception as exc:
+            print(f"[TCP] initial diagnostics failed for {self.mac}: {exc}")
 
 
 class MTTLServer:
     def __init__(self, host: str = "0.0.0.0", port: int = 10086, poll_interval: float = 10.0,
                  response_timeout: float = 3.0, boot_timeout: float = 10.0,
+                 diagnostics_interval: float = 30.0,
                  on_device_seen: Callable[[dict], None] | None = None):
         self.host = host
         self.port = port
         self.poll_interval = poll_interval
         self.response_timeout = response_timeout
         self.boot_timeout = boot_timeout
+        self.diagnostics_interval = diagnostics_interval
         self.on_device_seen = on_device_seen
         self._listen: socket.socket | None = None
         self._stop = threading.Event()
@@ -303,3 +362,12 @@ class MTTLServer:
                     session.query_info()
                 except Exception as exc:
                     print(f"[TCP] poll failed for {session.mac}: {exc}")
+                    continue
+                if (
+                    self.diagnostics_interval > 0
+                    and time.monotonic() - session._last_diagnostics_monotonic >= self.diagnostics_interval
+                ):
+                    try:
+                        session.query_diagnostics()
+                    except Exception as exc:
+                        print(f"[TCP] diagnostics failed for {session.mac}: {exc}")

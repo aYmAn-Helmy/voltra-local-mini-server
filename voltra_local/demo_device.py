@@ -40,6 +40,10 @@ def run_demo_device(host: str = "127.0.0.1", port: int = 10086, mac: str = "D8AA
                             continue
                         if line == "up:getinfo:all":
                             reply = _getinfo(states)
+                        elif line == "up:power_report:1:vol":
+                            reply = "up:power_report:1:223400"
+                        elif line == "up:query:wifirssi":
+                            reply = "up:query:-48"
                         elif line.startswith("up:onoff:"):
                             _, _, channel, action = line.split(":")
                             states[int(channel)] = action == "on"
