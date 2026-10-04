@@ -142,7 +142,7 @@ class DeviceSession:
 
         self.last_command_confirmed = confirmed
         self.last_command_at = utc_now()
-        if self.server.audit:
+        if getattr(self.server, "audit", None):
             self.server.audit.append(
                 "device",
                 "set_outlet",
@@ -151,7 +151,7 @@ class DeviceSession:
                 on=on,
                 confirmed=confirmed,
             )
-        if self.server.event_bus:
+        if getattr(self.server, "event_bus", None):
             self.server.event_bus.publish(
                 "outlet_command",
                 mac=self.mac,
@@ -277,7 +277,7 @@ class DeviceSession:
         if info is not None:
             self.outlets = {item.channel: item for item in info}
             self.last_info_at = utc_now()
-            if self.server.event_bus:
+            if getattr(self.server, "event_bus", None):
                 self.server.event_bus.publish("device_state", mac=self.mac, snapshot=self.snapshot())
 
         power_report = parse_power_report(frame)
@@ -303,7 +303,7 @@ class DeviceSession:
                 "on": on,
                 "received_at": event_at,
             }
-            if self.server.event_bus:
+            if getattr(self.server, "event_bus", None):
                 self.server.event_bus.publish(
                     "physical_onoff",
                     mac=self.mac,
