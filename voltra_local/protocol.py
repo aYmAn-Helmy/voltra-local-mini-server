@@ -14,8 +14,8 @@ _BOOTINFO_RE = re.compile(
 )
 _ONOFF_RE = re.compile(r"^up:(?:event:)?onoff:([1-4]):(on|off)$")
 _EVENT_ONOFF_RE = re.compile(r"^up:event:onoff:([0-4]):(on|off)$")
-_POWER_REPORT_RE = re.compile(r"^up:power_report:([1-5]):(-?\\d+)$")
-_QUERY_VALUE_RE = re.compile(r"^up:query:(-?\\d+)$")
+_POWER_REPORT_RE = re.compile(r"^up:power_report:([1-5]):(-?\d+)$")
+_QUERY_VALUE_RE = re.compile(r"^up:query:(-?\d+)$")
 
 
 @dataclass(frozen=True)
