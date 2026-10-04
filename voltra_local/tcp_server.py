@@ -210,12 +210,14 @@ class DeviceSession:
 
 class MTTLServer:
     def __init__(self, host: str = "0.0.0.0", port: int = 10086, poll_interval: float = 10.0,
-                 response_timeout: float = 3.0, boot_timeout: float = 10.0):
+                 response_timeout: float = 3.0, boot_timeout: float = 10.0,
+                 on_device_seen: Callable[[dict], None] | None = None):
         self.host = host
         self.port = port
         self.poll_interval = poll_interval
         self.response_timeout = response_timeout
         self.boot_timeout = boot_timeout
+        self.on_device_seen = on_device_seen
         self._listen: socket.socket | None = None
         self._stop = threading.Event()
         self._sessions: dict[str, DeviceSession] = {}
@@ -251,6 +253,11 @@ class MTTLServer:
             self._sessions[session.mac] = session
         if previous and previous is not session:
             previous.close()
+        if self.on_device_seen:
+            try:
+                self.on_device_seen(session.snapshot())
+            except Exception as exc:
+                print(f"[STORE] failed to persist {session.mac}: {exc}")
 
     def unregister(self, session: DeviceSession) -> None:
         if not session.mac:

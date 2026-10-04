@@ -19,7 +19,7 @@ def _getinfo(states: dict[int, bool]) -> str:
 
 
 def run_demo_device(host: str = "127.0.0.1", port: int = 10086, mac: str = "D8AA59D28888") -> None:
-    """Run an in-process fake MTTL-W01 for hosted UI/API demos."""
+    """Run an in-process fake MTTL-W01. Disabled by default."""
     states = {1: False, 2: False, 3: False, 4: False}
     while True:
         try:
