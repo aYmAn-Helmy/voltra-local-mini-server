@@ -9,7 +9,7 @@ from urllib.parse import unquote, urlsplit
 
 from . import __version__
 from .dashboard import DASHBOARD
-from .provisioner import provision_device
+from .provisioner import ProvisioningError, provision_device
 from .store import ConfigStore
 from .tcp_server import MTTLServer
 
@@ -37,7 +37,7 @@ def _decoded(value: str) -> str:
 
 
 class APIHandler(BaseHTTPRequestHandler):
-    server_version = "VoltraLocal/0.4"
+    server_version = f"VoltraLocal/{__version__}"
 
     @property
     def app(self) -> "VoltraHTTPServer":
