@@ -4,7 +4,7 @@ Local-first server for LG U+ / TONLY MTTL-W01 smart power strips.
 
 ## Current release
 
-**v0.14.1**
+**v0.15.0**
 
 Key capabilities:
 
@@ -21,6 +21,7 @@ Key capabilities:
 - Audit log and write rate limiting
 - Separate TCP and HTTP bind addresses
 - Tokenless standalone LAN dashboard/API
+- Calm smart-home device card dashboard with per-outlet tiles
 
 ## Quick demo with Docker
 
