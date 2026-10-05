@@ -10,6 +10,7 @@ services:
     restart: unless-stopped
     environment:
       VOLTRA_DEMO: "0"
+      TZ: "${VOLTRA_TIMEZONE:-Africa/Cairo}"
       VOLTRA_TCP_BIND: "0.0.0.0"
       VOLTRA_HTTP_BIND: "0.0.0.0"
       VOLTRA_HTTP_PORT: "8086"
