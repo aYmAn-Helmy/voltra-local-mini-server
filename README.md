@@ -4,7 +4,7 @@ Local-first server for LG U+ / TONLY MTTL-W01 smart power strips.
 
 ## Current release
 
-**v0.15.0**
+**v0.17.0**
 
 Key capabilities:
 
@@ -12,16 +12,18 @@ Key capabilities:
 - Reliable provisioning with independent setup connections and retries
 - Voltage and Wi-Fi RSSI diagnostics
 - Physical-button live events
-- Daily schedules and an offline command queue
+- Recurring schedules, one-time timers, countdowns and an offline command queue
 - Automation rules for offline, weak Wi-Fi, low power, and voltage thresholds
 - Health score and command/reconnect metrics
 - SSE live updates for the dashboard
-- Local energy telemetry and history summaries
+- Local total/per-outlet energy telemetry, history and mobile chart data
 - Backup/restore for Voltra configuration and automation
 - Audit log and write rate limiting
 - Separate TCP and HTTP bind addresses
 - Tokenless standalone LAN dashboard/API
 - Calm smart-home device card dashboard with per-outlet tiles
+- Server-side Rooms, Favorites, ordering, Scenes and energy/alert settings
+- Voltra-X LAN discovery on UDP 10087
 
 ## Quick demo with Docker
 
@@ -85,6 +87,12 @@ Physical strips connect to:
 
 ```text
 CASAOS-LAN-IP:10086/TCP
+```
+
+Voltra-X discovers the server on:
+
+```text
+CASAOS-LAN-IP:10087/UDP
 ```
 
 A multi-architecture image is also built for `amd64` and `arm64`:
@@ -169,6 +177,8 @@ Important environment variables:
 - `VOLTRA_HTTP_BIND`
 - `VOLTRA_TCP_PORT`
 - `VOLTRA_HTTP_PORT`
+- `VOLTRA_DISCOVERY_PORT`
+- `VOLTRA_TIMEZONE`
 - `VOLTRA_CORS_ORIGIN`
 - `VOLTRA_POLL_INTERVAL`
 - `VOLTRA_DIAGNOSTICS_INTERVAL`
@@ -182,12 +192,17 @@ Important environment variables:
 
 - `GET /voltra/api/events` — SSE live event stream
 - `GET /voltra/api/automation`
-- `POST /voltra/api/schedules`
+- `POST /voltra/api/schedules` — recurring or one-time schedule
+- `POST /voltra/api/countdown`
 - `DELETE /voltra/api/schedules/{id}`
 - `POST /voltra/api/rules`
 - `DELETE /voltra/api/rules/{id}`
 - `DELETE /voltra/api/queue`
-- `GET /voltra/api/energy?mac=...&hours=24`
+- `GET /voltra/api/energy?mac=...&hours=24&outlet=1`
+- `GET /voltra/api/energy/history?mac=...&hours=24&outlet=1`
+- `GET/POST/DELETE /voltra/api/scenes...`
+- `PUT /voltra/api/strips/{mac}/preferences`
+- `GET/PUT /voltra/api/settings`
 - `GET /voltra/api/audit?limit=100`
 - `GET /voltra/api/backup`
 - `POST /voltra/api/restore`
