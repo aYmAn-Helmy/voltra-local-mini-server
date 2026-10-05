@@ -1,0 +1,70 @@
+name: voltra
+
+services:
+  voltra:
+    image: ghcr.io/ayman-helmy/voltra-local-mini-server:latest
+    container_name: voltra
+    restart: unless-stopped
+    environment:
+      VOLTRA_DEMO: "0"
+      VOLTRA_TCP_BIND: "0.0.0.0"
+      VOLTRA_HTTP_BIND: "0.0.0.0"
+      VOLTRA_HTTP_PORT: "8086"
+      VOLTRA_TCP_PORT: "10086"
+      VOLTRA_API_TOKEN: "${VOLTRA_API_TOKEN:-CHANGE-ME-BEFORE-USE}"
+      VOLTRA_CORS_ORIGIN: "${VOLTRA_CORS_ORIGIN:-*}"
+      VOLTRA_POLL_INTERVAL: "${VOLTRA_POLL_INTERVAL:-10}"
+      VOLTRA_DIAGNOSTICS_INTERVAL: "${VOLTRA_DIAGNOSTICS_INTERVAL:-30}"
+      VOLTRA_TELEMETRY_INTERVAL: "${VOLTRA_TELEMETRY_INTERVAL:-60}"
+      VOLTRA_COMMAND_ATTEMPTS: "${VOLTRA_COMMAND_ATTEMPTS:-2}"
+      VOLTRA_COMMAND_CONFIRM_DELAY: "${VOLTRA_COMMAND_CONFIRM_DELAY:-0.15}"
+      VOLTRA_RATE_LIMIT_PER_MINUTE: "${VOLTRA_RATE_LIMIT_PER_MINUTE:-120}"
+      VOLTRA_DATA_DIR: "/app/data"
+    ports:
+      - target: 8086
+        published: "8086"
+        protocol: tcp
+      - target: 10086
+        published: "10086"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: /DATA/AppData/Voltra/data
+        target: /app/data
+    x-casaos:
+      envs:
+        - container: VOLTRA_API_TOKEN
+          description:
+            en_us: API token used to protect the Voltra dashboard and API
+      volumes:
+        - container: /app/data
+          description:
+            en_us: Persistent Voltra data
+      ports:
+        - container: "8086"
+          description:
+            en_us: Voltra Dashboard / API
+        - container: "10086"
+          description:
+            en_us: MTTL-W01 device TCP connection
+
+x-casaos:
+  id: com.voltra.local
+  main: voltra
+  index: /voltra
+  port_map: "8086"
+  scheme: http
+  title:
+    en_us: Voltra Local
+  tagline:
+    en_us: Local control server for MTTL-W01 power strips
+  description:
+    en_us: Local-first dashboard, automation and telemetry server for LG U+ / TONLY MTTL-W01 smart power strips.
+  category: "Home Automation"
+  author: aYmAn-Helmy
+  developer: aYmAn-Helmy
+  architectures:
+    - amd64
+    - arm64
+  icon: https://raw.githubusercontent.com/aYmAn-Helmy/voltra-local-mini-server/main/casaos/icon.svg
+  store_app_id: voltra-local
