@@ -53,6 +53,48 @@ docker compose -f docker-compose.demo.yml down -v
 The fake strip will appear in **Add Device / إضافة مشترك**. Adopt it to test outlet
 control, voltage, Wi-Fi RSSI, energy telemetry, schedules, health, and live updates.
 
+## CasaOS quick install
+
+The repository now includes a CasaOS-oriented deployment:
+
+- `docker-compose.casaos.yml` — CasaOS metadata + prebuilt GHCR image
+- `docker-compose.casaos.build.yml` — local build fallback
+- `casaos/install.sh` — one-command local installer
+- persistent data at `/DATA/AppData/Voltra/data`
+
+Recommended first install on a CasaOS host:
+
+```bash
+git clone https://github.com/aYmAn-Helmy/voltra-local-mini-server.git
+cd voltra-local-mini-server
+chmod +x casaos/install.sh
+./casaos/install.sh
+```
+
+The installer generates a random API token in `.env.casaos`, builds the image locally,
+starts the container, and prints the dashboard URL and token.
+
+Dashboard:
+
+```text
+http://CASAOS-LAN-IP:8086/voltra
+```
+
+Physical strips connect to:
+
+```text
+CASAOS-LAN-IP:10086/TCP
+```
+
+A multi-architecture image is also built for `amd64` and `arm64`:
+
+```text
+ghcr.io/ayman-helmy/voltra-local-mini-server:latest
+```
+
+If the GHCR package is private, authenticate Docker with a GitHub token that has
+`read:packages`, or use the local-build installer above.
+
 ## Real hardware on CasaOS / Docker
 
 For a real MTTL-W01 test, use the CasaOS/Docker host's **LAN IP** as the Voltra server IP.
