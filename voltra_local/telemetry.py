@@ -72,6 +72,53 @@ class TelemetryStore:
             for item in lines:
                 handle.write(json.dumps(item, ensure_ascii=False, separators=(",", ":")) + "\n")
 
+    def history(self, mac: str, hours: float = 24.0, limit: int = 96) -> dict:
+        hours = max(0.25, min(float(hours), 24.0 * 365))
+        limit = max(12, min(int(limit), 500))
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+        rows = []
+
+        if self.path.exists():
+            with self._lock:
+                try:
+                    lines = self.path.read_text(encoding="utf-8").splitlines()
+                except OSError:
+                    lines = []
+
+            for line in lines:
+                try:
+                    item = json.loads(line)
+                    at = datetime.fromisoformat(str(item.get("at")))
+                except (json.JSONDecodeError, ValueError, TypeError):
+                    continue
+                if str(item.get("mac", "")).upper() == mac.upper() and at >= cutoff:
+                    rows.append(item)
+
+        if len(rows) > limit:
+            step = max(1, len(rows) // limit)
+            sampled = rows[::step]
+            if sampled[-1] is not rows[-1]:
+                sampled.append(rows[-1])
+            rows = sampled[-limit:]
+
+        points = [
+            {
+                "at": row.get("at"),
+                "power_w": round(float(row.get("total_power_w") or 0), 3),
+                "energy_kwh": round(float(row.get("energy_kwh") or 0), 6),
+                "voltage_v": row.get("voltage_v"),
+                "wifi_rssi_dbm": row.get("wifi_rssi_dbm"),
+            }
+            for row in rows
+        ]
+
+        return {
+            "mac": mac.upper(),
+            "hours": hours,
+            "samples": len(points),
+            "points": points,
+        }
+
     def summary(self, mac: str, hours: float = 24.0) -> dict:
         hours = max(0.25, min(float(hours), 24.0 * 365))
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
