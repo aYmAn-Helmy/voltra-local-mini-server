@@ -100,6 +100,19 @@ class APIHandler(BaseHTTPRequestHandler):
                 except ValueError:
                     return self._json(400, {"error": "hours must be numeric"})
                 return self._json(200, self.app.telemetry.summary(mac, hours))
+            if path == "/voltra/api/energy/history":
+                if not self.app.telemetry:
+                    return self._json(503, {"error": "telemetry disabled"})
+                mac = str((query.get("mac") or [""])[0])
+                if not mac:
+                    return self._json(400, {"error": "mac query parameter is required"})
+                mac = self.app.store.normalize_mac(mac)
+                try:
+                    hours = float((query.get("hours") or ["24"])[0])
+                    limit = int((query.get("limit") or ["96"])[0])
+                except ValueError:
+                    return self._json(400, {"error": "hours and limit must be numeric"})
+                return self._json(200, self.app.telemetry.history(mac, hours, limit))
             if path == "/voltra/api/audit":
                 if not self.app.audit:
                     return self._json(200, {"events": []})
