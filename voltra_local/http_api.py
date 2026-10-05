@@ -73,7 +73,6 @@ class APIHandler(BaseHTTPRequestHandler):
             if path == "/health":
                 return self._json(200, {"ok": True, "version": __version__})
 
-            self._require_auth()
             if path == "/voltra/api/events":
                 return self._sse()
             if path == "/api/status":
@@ -137,7 +136,6 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             path = urlsplit(self.path).path
-            self._require_auth()
             if not self.app.allow_write(self.client_address[0]):
                 return self._json(429, {"error": "rate limit exceeded"})
             self.app.audit_request("POST", path, self.client_address[0])
@@ -241,7 +239,6 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_PUT(self):
         try:
             path = urlsplit(self.path).path
-            self._require_auth()
             if not self.app.allow_write(self.client_address[0]):
                 return self._json(429, {"error": "rate limit exceeded"})
             self.app.audit_request("PUT", path, self.client_address[0])
@@ -278,7 +275,6 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         try:
             path = urlsplit(self.path).path
-            self._require_auth()
             if not self.app.allow_write(self.client_address[0]):
                 return self._json(429, {"error": "rate limit exceeded"})
             self.app.audit_request("DELETE", path, self.client_address[0])
@@ -345,11 +341,6 @@ class APIHandler(BaseHTTPRequestHandler):
         finally:
             self.app.event_bus.unsubscribe(target)
 
-    def _require_auth(self):
-        token = self.app.api_token
-        if token and self.headers.get("Authorization") != f"Bearer {token}":
-            raise PermissionError("invalid or missing API token")
-
     def _read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))
         if length > 1024 * 1024:
@@ -396,7 +387,6 @@ class VoltraHTTPServer(ThreadingHTTPServer):
         address,
         mttl: MTTLServer,
         store: ConfigStore,
-        api_token: str = "",
         cors_origin: str = "*",
         *,
         automation=None,
@@ -407,7 +397,6 @@ class VoltraHTTPServer(ThreadingHTTPServer):
     ):
         self.mttl = mttl
         self.store = store
-        self.api_token = api_token
         self.cors_origin = cors_origin
         self.automation = automation
         self.telemetry = telemetry
@@ -578,7 +567,6 @@ def start_http(
     host: str,
     port: int,
     store: ConfigStore | None = None,
-    api_token: str = "",
     cors_origin: str = "*",
     *,
     automation=None,
@@ -592,7 +580,6 @@ def start_http(
         (host, port),
         mttl,
         store=store,
-        api_token=api_token,
         cors_origin=cors_origin,
         automation=automation,
         telemetry=telemetry,
