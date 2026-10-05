@@ -40,3 +40,32 @@ jobs:
       - name: Stop demo container
         if: always()
         run: docker compose -f docker-compose.demo.yml down -v
+
+  real-container-smoke:
+    runs-on: ubuntu-latest
+    env:
+      VOLTRA_API_TOKEN: ci-real-hardware-smoke-token
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start real container
+        run: docker compose -f docker-compose.real.yml up -d --build
+      - name: Wait for health endpoint
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8086/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker compose -f docker-compose.real.yml logs
+          exit 1
+      - name: Verify authenticated API
+        run: |
+          curl --fail --silent \
+            -H "Authorization: Bearer $VOLTRA_API_TOKEN" \
+            http://127.0.0.1:8086/api/status >/dev/null
+      - name: Verify device TCP port is published
+        run: python -c "import socket; s=socket.create_connection(('127.0.0.1',10086),2); s.close()"
+      - name: Stop real container
+        if: always()
+        run: docker compose -f docker-compose.real.yml down -v
