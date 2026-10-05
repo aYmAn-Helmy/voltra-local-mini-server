@@ -21,6 +21,38 @@ Key capabilities:
 - Audit log and write rate limiting
 - Separate TCP and HTTP bind addresses
 
+## Quick demo with Docker
+
+Run an isolated demo container with a built-in fake MTTL-W01 device:
+
+```bash
+docker compose -f docker-compose.demo.yml up --build
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8086/voltra
+```
+
+The demo publishes only the dashboard port to localhost. Device TCP stays inside the
+container, and demo data is stored in the dedicated `voltra_demo_data` Docker volume.
+
+Stop the demo:
+
+```bash
+docker compose -f docker-compose.demo.yml down
+```
+
+Reset all demo data:
+
+```bash
+docker compose -f docker-compose.demo.yml down -v
+```
+
+The fake strip will appear in **Add Device / إضافة مشترك**. Adopt it to test outlet
+control, voltage, Wi-Fi RSSI, energy telemetry, schedules, health, and live updates.
+
 ## Run
 
 ```bash
