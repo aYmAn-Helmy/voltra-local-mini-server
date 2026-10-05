@@ -4,7 +4,7 @@ Local-first server for LG U+ / TONLY MTTL-W01 smart power strips.
 
 ## Current release
 
-**v0.17.0**
+**v0.18.0**
 
 Key capabilities:
 
@@ -21,7 +21,8 @@ Key capabilities:
 - Audit log and write rate limiting
 - Separate TCP and HTTP bind addresses
 - Tokenless standalone LAN dashboard/API
-- Calm smart-home device card dashboard with per-outlet tiles
+- Mobile-first dark smart-home dashboard with total-power hero, quick actions and search
+- Reference-style strip cards with 2x2 outlet tiles and per-strip Turn all on/off controls
 - Server-side Rooms, Favorites, ordering, Scenes and energy/alert settings
 - Voltra-X LAN discovery on UDP 10087
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 DASHBOARD = r'''<!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Voltra Power Manager</title>
 <style>
 :root{font-family:Inter,system-ui,"Segoe UI",Tahoma,Arial,sans-serif;color-scheme:dark;background:#07111d;color:#edf5ff;--panel:#0c1826;--panel2:#101e2d;--line:#20354a;--muted:#8fa7bf;--blue:#2196ff;--green:#20d878;--amber:#ffb020;--red:#ff5060}
@@ -29,22 +29,120 @@ DASHBOARD = r'''<!doctype html>
 .devices-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}.devices-toolbar-copy h2{margin:0;font-size:24px}.devices-toolbar-copy p{margin:5px 0 0;color:#8299af;font-size:13px}
 @media(max-width:1050px){#managedStrips{grid-template-columns:1fr}.device-metrics{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:620px){.device-card{padding:15px;border-radius:20px}.device-metrics{grid-template-columns:repeat(2,1fr)}.socket-grid{grid-template-columns:1fr}.device-state{padding:6px 8px}.device-icon{width:46px;height:46px;flex-basis:46px}.device-name{font-size:18px}}
+
+/* v0.18 mobile-first dashboard — layout matched to the supplied reference */
+:root{--v18-bg:#070d1b;--v18-card:#111827;--v18-card2:#151e31;--v18-line:#202a3d;--v18-muted:#818ba3;--v18-text:#f0f3fb;--v18-green:#31df7d;--v18-green-soft:#143a2d}
+html{background:var(--v18-bg)}body{background:var(--v18-bg)!important;color:var(--v18-text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif}
+.shell{position:relative;max-width:760px!important;margin:0 auto!important;padding:22px 16px 100px!important;direction:ltr}
+.app-header{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:22px}
+.app-header h1{font-size:31px;line-height:1;margin:9px 0 0;font-weight:850;letter-spacing:-1.2px}
+.live-kicker{font-size:11px;letter-spacing:3px;color:var(--v18-green);font-weight:800}.live-dot{display:inline-block;width:5px;height:5px;border-radius:99px;background:var(--v18-green);box-shadow:0 0 12px #31df7dcc;margin-right:6px}
+.header-actions{display:flex;gap:10px}.icon-btn{width:43px;height:43px;border-radius:13px;border:1px solid var(--v18-line);background:#0e1627;color:#8f99af;font-size:22px;display:grid;place-items:center;cursor:pointer;box-shadow:inset 0 1px #ffffff08}.icon-btn:hover{color:#fff;border-color:#34425d}
+.account-card,.power-hero,.search-box,.quick-card,.strip-card{border:1px solid var(--v18-line);box-shadow:inset 0 1px #ffffff06}
+.account-card{height:70px;border-radius:19px;background:linear-gradient(155deg,#121a2b,#0f1727);display:flex;align-items:center;padding:11px 15px;gap:13px;margin-bottom:16px;cursor:pointer}
+.avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--v18-green);color:#07160d;font-weight:900;font-size:16px}.account-copy{min-width:0;flex:1}.account-copy strong{display:block;font-size:15px}.account-copy span{display:block;color:var(--v18-muted);font-size:12px;margin-top:4px}.chevron{font-size:29px;color:#7f899f;font-weight:200}
+.power-hero{border-radius:20px;background:linear-gradient(165deg,#151e31 0%,#121a2b 100%);padding:20px 20px 17px;margin-bottom:15px;position:relative;overflow:hidden}
+.power-hero:after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent,var(--v18-green),transparent);opacity:.6}
+.hero-label{font-size:12px;color:#8e97ad;font-weight:650}.hero-value{display:flex;align-items:flex-end;gap:8px;margin:7px 0 10px;color:var(--v18-green)}.hero-value span{font:800 46px/1 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:-2px}.hero-value small{font-size:13px;color:#9ca5b9;margin-bottom:7px}
+.hero-meta{display:flex;gap:15px;flex-wrap:wrap;color:#939caf;font-size:11px}.hero-meta b{color:#c5cbd8}
+.quick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-bottom:14px}.quick-card{min-width:0;height:82px;border-radius:13px;background:#101829;color:#8e97ad;padding:9px 4px 8px;cursor:pointer;overflow:hidden}.quick-card:hover{border-color:#2e405c;color:#d6dbe7}.quick-icon{margin:0 auto 7px;display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:#102c2a;color:var(--v18-green);font-size:20px}.quick-card>span:last-child{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px}
+.search-box{height:54px;border-radius:15px;background:#101829;display:flex;align-items:center;gap:10px;padding:0 15px;margin-bottom:16px;color:#7c869d}.search-box>span{font-size:24px;line-height:1}.search-box input{width:100%;border:0;outline:0;background:transparent;color:#e8ebf3;font-size:14px;font-weight:600}.search-box input::placeholder{color:#69738b}
+.compat-stats{display:none!important}
+.nav-drawer{display:none;position:absolute;z-index:90;top:76px;right:16px;width:min(280px,calc(100% - 32px));padding:8px;border-radius:17px;border:1px solid #2a354a;background:#101829;box-shadow:0 25px 70px #000b}.nav-drawer.show{display:grid;gap:4px}.nav-drawer .tab{display:block;width:100%;text-align:left;border:0!important;background:transparent!important;color:#c2c8d5!important;border-radius:10px!important;padding:11px 12px!important}.nav-drawer .tab:hover,.nav-drawer .tab.active{background:#172238!important;color:#fff!important;box-shadow:none!important}
+.app-pages{display:block}.page{display:none}.page.active{display:block}.page:not(#page-strips){direction:rtl;background:#101829;border:1px solid var(--v18-line);border-radius:20px;padding:17px;box-shadow:inset 0 1px #ffffff06}.secondary-ui .account-card,.secondary-ui .power-hero,.secondary-ui .quick-grid,.secondary-ui .search-box{display:none}.secondary-ui .app-header{margin-bottom:16px}.secondary-ui .fab-add{display:none}
+#managedStrips{display:grid!important;grid-template-columns:1fr!important;gap:15px!important}
+.strip-card{border-radius:19px;background:linear-gradient(160deg,#101828,#0e1625);padding:15px 14px 13px;overflow:visible;transition:.15s ease}.strip-card.offline{opacity:.72}.strip-card.disabled{opacity:.7}
+.strip-card-head{display:flex;align-items:center;gap:9px}.strip-status-dot{width:8px;height:8px;border-radius:99px;background:var(--v18-green);box-shadow:0 0 12px #31df7dcc;flex:none}.strip-card.offline .strip-status-dot{background:#788196;box-shadow:none}.strip-title{font-size:19px;font-weight:850;min-width:0;max-width:52%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.online-pill{font:700 9px/1 ui-monospace,SFMono-Regular,monospace;letter-spacing:1px;padding:6px 9px;border-radius:999px;color:#69e5a0;border:1px solid #255c49;background:#102b25;text-transform:uppercase}.online-pill.offline{color:#929aad;border-color:#343e51;background:#161d2a}
+.gear-btn{margin-left:auto;width:33px;height:33px;border:0;background:transparent;color:#8993a8;font-size:19px;cursor:pointer;border-radius:9px}.gear-btn:hover{background:#182238;color:#fff}
+.strip-subrow{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:9px 0 13px;color:#848da3;font:500 11px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace}.strip-subrow .strip-watts{color:var(--v18-green);white-space:nowrap}
+.outlet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.outlet-tile{min-height:116px;border:1px solid #202a3d;background:#141d2f;border-radius:15px;padding:12px;cursor:pointer;position:relative;transition:border-color .15s,background .15s,transform .15s}.outlet-tile:hover{transform:translateY(-1px)}.outlet-tile.on{background:linear-gradient(145deg,#15322e,#172335);border-color:#287151;box-shadow:inset 0 0 0 1px #31df7d10}.outlet-tile.unavailable{cursor:not-allowed;opacity:.55;transform:none}
+.socket-circle{width:35px;height:35px;border-radius:50%;display:grid;place-items:center;border:2px solid #38445c;color:#667087;font-size:16px;margin-bottom:12px}.outlet-tile.on .socket-circle{border-color:var(--v18-green);color:var(--v18-green);box-shadow:0 0 15px #31df7d22}
+.outlet-name{font-size:13px;font-weight:780;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.outlet-state{margin-top:6px;color:#737d94;font:700 10px/1 ui-monospace,SFMono-Regular,monospace}.outlet-tile.on .outlet-state{color:var(--v18-green)}.outlet-power{margin-top:6px;color:var(--v18-green);font:750 12px/1 ui-monospace,SFMono-Regular,monospace}.outlet-tile:not(.on) .outlet-power{display:none}
+.strip-bulk{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.bulk-btn{height:45px;border-radius:14px;border:1px solid #202a3d;background:#111928;color:#697389;font-weight:800;font-size:12px;cursor:pointer}.bulk-btn.on{border-color:#277451;background:linear-gradient(145deg,#17382f,#17312e);color:var(--v18-green)}.bulk-btn:disabled{opacity:.42;cursor:not-allowed}
+.strip-details{margin-top:10px;border-top:1px solid #1d2739;padding-top:9px}.strip-details summary{cursor:pointer;color:#6f7a91;font-size:10px;list-style:none}.strip-details summary::-webkit-details-marker{display:none}
+.strip-menu-wrap{position:relative}.strip-menu-wrap .device-menu-pop{left:auto;right:0;bottom:auto;top:38px}
+.fab-add{position:fixed;z-index:60;right:max(18px,calc((100vw - 760px)/2 + 18px));bottom:24px;height:53px;padding:0 24px;border:0;border-radius:27px;background:var(--v18-green);color:#092016;font-weight:900;font-size:14px;box-shadow:0 16px 35px #31df7d35;cursor:pointer}.fab-add:hover{filter:brightness(1.07)}
+body.bright-ui{--v18-card:#182238;--v18-card2:#1b2740}.bright-ui .power-hero,.bright-ui .strip-card,.bright-ui .account-card{filter:brightness(1.08)}
+.devices-empty{border-color:#273249!important;background:#101829!important;border-radius:18px!important;color:#818ba3!important}
+.toast{direction:rtl}
+@media(max-width:520px){.shell{padding:18px 16px 92px!important}.app-header h1{font-size:29px}.icon-btn{width:41px;height:41px}.quick-grid{gap:7px}.quick-card{height:80px}.hero-value span{font-size:43px}.hero-meta{gap:11px}.strip-title{font-size:18px;max-width:48%}.outlet-grid{gap:9px}.outlet-tile{min-height:113px}.fab-add{right:17px;bottom:20px}}
+@media(min-width:761px){.strip-card{padding:18px}.outlet-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.outlet-tile{min-height:125px}.quick-card>span:last-child{font-size:11.5px}}
+
 </style></head><body><div class="shell">
-<div class="top"><div class="brand"><h1>⚡ Voltra Power Manager</h1><p>إدارة طاقة الشاشات وربطها بأجهزة PlayZone — بدون التعامل اليدوي مع MAC أثناء التشغيل اليومي</p></div><div class="badges"><span id="modeBadge" class="badge">...</span><span id="connectionBadge" class="badge online">جاري الاتصال...</span></div></div>
-<div class="stats"><div class="stat"><span>المشتركات المضافة</span><b id="statActive">0</b></div><div class="stat"><span>Online</span><b id="statOnline">0</b></div><div class="stat"><span>تم اكتشافها حديثًا</span><b id="statPending">0</b></div><div class="stat"><span>الأجهزة المربوطة</span><b id="statMapped">0</b></div><div class="stat"><span>إجمالي الاستهلاك الحالي</span><b><span id="statPower">0</span> W</b></div></div>
-<div class="panel"><div class="tabs"><button class="tab active" data-page="strips">المشتركات</button><button class="tab" data-page="discover">➕ إضافة مشترك <span id="pendingTabCount" class="count">0</span></button><button class="tab" data-page="mapping">الربط</button><button class="tab" data-page="network">إعداد الشبكة</button><button class="tab" data-page="automation">الأتمتة</button><button class="tab" data-page="energy">الطاقة</button><button class="tab" data-page="advanced">متقدم</button></div>
-<div id="page-strips" class="page active"><div class="devices-toolbar"><div class="devices-toolbar-copy"><h2>أجهزتي</h2><p>تحكم سريع في كل مشترك ومخارج الطاقة من شاشة واحدة.</p></div><button class="btn blue" onclick="goTab('discover')">+ إضافة مشترك</button></div><div id="managedStrips"></div></div>
+<header class="app-header">
+  <div>
+    <div class="live-kicker"><span class="live-dot"></span> VOLTRA LIVE</div>
+    <h1 id="screenTitle">My strips</h1>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" onclick="refresh()" title="Refresh" aria-label="Refresh">↻</button>
+    <button class="icon-btn" onclick="toggleDisplayMode()" title="Display" aria-label="Display">☼</button>
+    <button class="icon-btn" onclick="toggleNav()" title="Menu" aria-label="Menu">⋮</button>
+  </div>
+</header>
+
+<section class="account-card" onclick="goTab('advanced')">
+  <div class="avatar">VL</div>
+  <div class="account-copy">
+    <strong>Voltra Local</strong>
+    <span id="accountVersion">Local power manager</span>
+  </div>
+  <span class="chevron">›</span>
+</section>
+
+<section class="power-hero">
+  <div class="hero-label">Total power right now</div>
+  <div class="hero-value"><span id="statPower">0.0</span><small>W</small></div>
+  <div class="hero-meta">
+    <span><b id="statOnline">0</b> strips online</span>
+    <span><b id="outletOnCount">0</b>/<b id="outletTotalCount">0</b> outlets on</span>
+    <span><b id="planCount">0</b> plans active</span>
+  </div>
+</section>
+
+<section class="quick-grid">
+  <button class="quick-card" onclick="goTab('energy')"><span class="quick-icon">▥</span><span>Consumption</span></button>
+  <button class="quick-card" onclick="goTab('automation');loadAutomation()"><span class="quick-icon">◷</span><span>Schedules</span></button>
+  <button class="quick-card" onclick="goTab('automation');loadAutomation()"><span class="quick-icon">ϟ</span><span>Power automation</span></button>
+  <button class="quick-card" onclick="goTab('mapping')"><span class="quick-icon">⌘</span><span>Rooms</span></button>
+</section>
+
+<label class="search-box">
+  <span>⌕</span>
+  <input id="stripSearch" type="search" placeholder="Search strips and outlets" oninput="setStripSearch(this.value)">
+</label>
+
+<div class="compat-stats" aria-hidden="true">
+  <span id="statActive">0</span><span id="statPending">0</span><span id="statMapped">0</span>
+  <span id="pendingTabCount">0</span><span id="modeBadge"></span><span id="connectionBadge"></span>
+</div>
+
+<nav id="navDrawer" class="nav-drawer">
+  <button class="tab active" data-page="strips">My strips</button>
+  <button class="tab" data-page="discover">Add strip</button>
+  <button class="tab" data-page="mapping">Rooms & mapping</button>
+  <button class="tab" data-page="network">Network setup</button>
+  <button class="tab" data-page="automation">Automation</button>
+  <button class="tab" data-page="energy">Energy</button>
+  <button class="tab" data-page="advanced">Advanced</button>
+</nav>
+
+<main class="app-pages">
+<div id="page-strips" class="page active">
+  <div id="managedStrips"></div>
+</div>
 <div id="page-discover" class="page"><div class="section-title"><div><h2>اكتشاف مشترك جديد</h2><div class="muted">Voltra يكتشف المشترك تلقائيًا عند اتصاله بـ TCP 10086. اكتب اسمًا فقط ثم اضغط إضافة.</div></div><button class="btn ghost" onclick="refresh()">تحديث</button></div><div id="pendingStrips"></div><div class="notice">لو المشترك لا يظهر هنا، استخدم تبويب <b>إعداد الشبكة</b> لتوجيهه إلى IP جهاز PlayZone. لا نعمل LAN Scan ولا نخمن عنوان المشترك.</div></div>
 <div id="page-mapping" class="page"><div class="section-title"><div><h2>ربط الشاشات بأجهزة PlayStation</h2><div class="muted">كل جهاز يرتبط بمخرج واحد. المشتركات المعطلة لا تظهر كاختيار جديد، لكن ربطها القديم يظل محفوظًا.</div></div></div><div id="mappings"></div></div>
 <div id="page-network" class="page"><h2>إعداد مشترك على شبكة Wi‑Fi</h2><div class="notice">استخدم هذه الخطوة فقط عند تجهيز مشترك جديد أو تغيير الشبكة. جهاز السيرفر لازم يكون قادرًا على الوصول إلى شبكة <b>TONLY_TAP_xxxxxxx</b> وقت الإعداد.</div><div class="formline"><input id="wifiSsid" class="field" placeholder="اسم شبكة 2.4GHz"><input id="wifiPassword" class="field" type="password" placeholder="كلمة المرور"><input id="serverIp" class="field" placeholder="IP جهاز PlayZone مثل 192.168.1.65"></div><button class="btn blue" onclick="provision()">إرسال إعدادات الشبكة</button><p class="muted">بعد الإرسال يعمل المشترك Reboot ويتصل تلقائيًا بالسيرفر على TCP 10086، ثم يظهر في “إضافة مشترك”.</p></div>
 <div id="page-automation" class="page"><div class="section-title"><div><h2>الجداول والـ Offline Queue</h2><div class="muted">الجداول تعمل محليًا بدون إنترنت طالما Voltra Server شغال.</div></div><button class="btn ghost" onclick="loadAutomation()">تحديث</button></div><div class="formline"><select id="scheduleTarget" class="field"></select><input id="scheduleTime" class="field" type="time" value="23:00"><select id="scheduleAction" class="field"><option value="off">إيقاف</option><option value="on">تشغيل</option></select></div><div class="actions"><button class="btn blue" onclick="createSchedule()">إضافة جدول يومي</button><button class="btn ghost" onclick="clearQueue()">مسح الأوامر المعلقة</button></div><div id="automationList" style="margin-top:14px"></div></div>
 <div id="page-energy" class="page"><div class="section-title"><div><h2>استهلاك الطاقة</h2><div class="muted">ملخص مبني على العينات المحلية المخزنة في السيرفر.</div></div></div><div class="formline"><select id="energyTarget" class="field"></select><select id="energyHours" class="field"><option value="24">آخر 24 ساعة</option><option value="168">آخر 7 أيام</option><option value="720">آخر 30 يوم</option></select><button class="btn blue" onclick="loadEnergy()">عرض</button></div><div id="energyResult" class="good">اختر مشترك واضغط عرض.</div></div>
 <div id="page-advanced" class="page"><div class="section-title"><div><h2>المشتركات غير المستخدمة / السجل</h2><div class="muted">المتجاهلة أو المستبدلة أو التي تمت إزالتها. الاحتفاظ بالسجل يمنع الالتباس إذا ظل جهاز قديم متصلًا بالشبكة.</div></div></div><div id="historyStrips" class="history"></div><div class="danger-zone"><b>ملاحظة أمان</b><div class="muted" style="margin-top:6px">Voltra مخصص لفصل كهرباء الشاشة فقط. لا توصل جهاز PS4 نفسه على Outlet يتم التحكم فيه تلقائيًا.</div></div></div>
-</div></div><div class="toast" id="toast"></div>
+</main><button class="fab-add" onclick="goTab('discover')">＋ Add strip</button><div class="toast" id="toast"></div>
 <div class="modal" id="renameModal"><div class="modalbox"><h3>تغيير اسم المشترك</h3><input class="field" id="renameValue"><div style="margin-top:12px" class="actions"><button class="btn blue" onclick="saveRename()">حفظ</button><button class="btn ghost" onclick="closeModal('renameModal')">إلغاء</button></div></div></div>
 <div class="modal" id="replaceModal"><div class="modalbox"><h3>استبدال المشترك</h3><p class="muted">سيتم نقل نفس ربط الـOutlets إلى المشترك الجديد، وتعطيل القديم ووضعه في السجل.</p><div id="replaceOldInfo" class="good"></div><select id="replaceSelect" class="field"></select><div style="margin-top:12px" class="actions"><button class="btn amber" onclick="confirmReplace()">استبدال ونقل الربط</button><button class="btn ghost" onclick="closeModal('replaceModal')">إلغاء</button></div></div></div>
+</div>
 <script>
-let data={strips:[],ps4_devices:[],mappings:{},summary:{}};let automationData={schedules:{},rules:{},queue:[]};let renameMac=null;let replaceOldMac=null;const mappingDrafts={};const mappingDirty=new Set();const mappingSaving=new Set();
+let data={strips:[],ps4_devices:[],mappings:{},summary:{}};let automationData={schedules:{},rules:{},queue:[]};let renameMac=null;let replaceOldMac=null;let stripSearchValue='';const mappingDrafts={};const mappingDirty=new Set();const mappingSaving=new Set();
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const playzoneMode=location.pathname==='/voltra-console'||location.pathname.startsWith('/voltra-console/');
 async function api(path,opt={}){const token=playzoneMode?(localStorage.getItem('playzone_token')||''):'';const headers={'content-type':'application/json',...(opt.headers||{})};if(playzoneMode&&token)headers['Authorization']='Bearer '+token;const requestPath=playzoneMode?path.replace(/^\/voltra\/api/,'/api/root/voltra-console'):path;const r=await fetch(requestPath,{...opt,headers});const t=await r.text();let v={};try{v=t?JSON.parse(t):{}}catch{v={raw:t}}if(r.status===401&&playzoneMode)throw new Error(v.detail||v.error||'جلسة PlayZone غير صالحة أو الحساب ليس ROOT');if(!r.ok)throw new Error(v.detail||v.error||r.statusText);return v}
@@ -53,14 +151,102 @@ function mappingFor(mac,outlet){return Object.entries(data.mappings||{}).find(([
 function ps4Name(id){return data.ps4_devices.find(x=>String(x.id)===String(id))?.name||id}
 function psLogo(){return `<span class="ps-logo" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18 8v24l8 3V16.8c0-2.4 2.1-3.1 4-2.5 2.3.7 3.6 2.2 3.6 4.4 0 3.2-2.5 5.4-6.1 4.4v7.3c8.5 2.1 13.5-2 13.5-10.3 0-8.5-7.6-11.2-15-13.4L18 8Z" fill="white"/><path d="M7 34.8c-2.2 1-2.6 2.5-.8 3.1 2.4.8 6.7.6 10.2-.5l4.1-1.3v-5.3l-4.4 1.4c-3.1 1-6.5 1.8-9.1 2.6Zm20.6-2.4v5.5c4.3-1.3 8.8-2.3 12.5-1.7 1.8.3 2.1 1.2.2 2.1-3.1 1.5-8.5 2.3-12.7 3.7v3.7c6.7-2.1 13.1-3.8 16.7-6.4 2.9-2.1 1.8-4.5-2.2-5.1-3.8-.6-9.1-.1-14.5 1.3v-3.1Z" fill="white"/></svg></span>`}
 function stripByMac(mac){return data.strips.find(x=>x.mac===mac)}
-function goTab(name){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.page===name));document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+name))}
+function goTab(name){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.page===name));
+  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id==='page-'+name));
+  document.body.classList.toggle('secondary-ui',name!=='strips');
+  const titles={strips:'My strips',discover:'Add strip',mapping:'Rooms & mapping',network:'Network setup',automation:'Automation',energy:'Consumption',advanced:'Advanced'};
+  const title=document.getElementById('screenTitle');if(title)title.textContent=titles[name]||'Voltra';
+  document.getElementById('navDrawer')?.classList.remove('show');
+  if(name==='automation')loadAutomation();
+}
+function toggleNav(){document.getElementById('navDrawer')?.classList.toggle('show')}
+function toggleDisplayMode(){document.body.classList.toggle('bright-ui');localStorage.setItem('voltra_bright_ui',document.body.classList.contains('bright-ui')?'1':'0')}
+function setStripSearch(value){stripSearchValue=String(value||'').trim().toLowerCase();renderManaged()}
 function closeModal(id){document.getElementById(id).classList.remove('show')}
 function activeStrips(){return data.strips.filter(s=>s.managed&&(s.state==='active'||s.state==='disabled'))}
 function pendingStrips(){return data.strips.filter(s=>s.state==='pending')}
 function candidateReplacementStrips(oldMac){return data.strips.filter(s=>s.mac!==oldMac&&s.online&&!s.managed&&['pending','ignored','removed'].includes(s.state))}
-function render(forceMappings=false){const q=data.summary||{};statActive.textContent=q.active_strips??activeStrips().length;statOnline.textContent=q.online_strips??activeStrips().filter(s=>s.online).length;statPending.textContent=q.pending_strips??pendingStrips().length;statMapped.textContent=q.mapped_devices??Object.keys(data.mappings||{}).length;statPower.textContent=Number(q.total_power_w||0).toFixed(1);pendingTabCount.textContent=pendingStrips().length;modeBadge.textContent=data.mode==='demo'?'DEMO MODE':'REAL HARDWARE';modeBadge.className='badge '+(data.mode==='demo'?'demo':'real');connectionBadge.textContent='● Voltra متصل';renderManaged();renderPending();renderMappings(forceMappings);renderHistory();renderTargets()}
+function render(forceMappings=false){
+  const q=data.summary||{};
+  statActive.textContent=q.active_strips??activeStrips().length;
+  statOnline.textContent=q.online_strips??activeStrips().filter(s=>s.online).length;
+  statPending.textContent=q.pending_strips??pendingStrips().length;
+  statMapped.textContent=q.mapped_devices??Object.keys(data.mappings||{}).length;
+  statPower.textContent=Number(q.total_power_w||0).toFixed(1);
+  pendingTabCount.textContent=pendingStrips().length;
+  modeBadge.textContent=data.mode==='demo'?'DEMO MODE':'REAL HARDWARE';
+  connectionBadge.textContent='● Voltra connected';
+  const active=activeStrips();
+  let total=0,on=0;
+  for(const s of active){for(const o of (s.outlets||[])){total++;if(o.relay)on++}}
+  outletOnCount.textContent=on;
+  outletTotalCount.textContent=total||active.length*4;
+  planCount.textContent=Object.values(automationData.schedules||{}).filter(x=>x.enabled!==false).length;
+  accountVersion.textContent='v'+(data.version||'—')+' · Local mini server';
+  renderManaged();renderPending();renderMappings(forceMappings);renderHistory();renderTargets();
+}
 function stateLabel(s){if(s.state==='disabled')return '<span class="status disabled">● معطل</span>';return `<span class="status ${s.online?'online':'offline'}">● ${s.online?'Online':'Offline'}</span>`}
-function renderManaged(){const root=document.getElementById('managedStrips'),arr=activeStrips();if(!arr.length){root.innerHTML='<div class="devices-empty"><b>لا توجد مشتركات مضافة</b><br><span>أضف أول مشترك وسيظهر هنا كجهاز مستقل بأربع مخارج.</span></div>';return}root.innerHTML=arr.map(s=>{let outs='';for(let n=1;n<=4;n++){const o=(s.outlets||[]).find(x=>Number(x.channel)===n);const pid=mappingFor(s.mac,n);const can=s.online&&s.enabled&&s.state==='active';const name=pid?ps4Name(pid):`Outlet ${n}`;const sub=pid?`Outlet ${n}`:'غير مربوط';const isOn=!!o?.relay;outs+=`<div class="socket ${isOn?'on':'off'} ${can?'':'unavailable'}"><div class="socket-top"><div style="min-width:0"><div class="socket-name">${esc(name)}</div><div class="socket-sub">${esc(sub)}</div></div><button class="power-toggle ${isOn?'on':''}" ${can?'':'disabled'} onclick="powerOutlet('${s.mac}',${n},${!isOn})" title="${isOn?'إيقاف':'تشغيل'}">⏻</button></div><div class="socket-power">${Number(o?.power_w||0).toFixed(1)} <small>W</small></div></div>`}const healthScore=Number(s.health?.score??0);const healthClass=healthScore>=80?'':healthScore>=55?'warn':'bad';const statusClass=s.state==='disabled'?'disabled':(s.online?'online':'offline');const statusText=s.state==='disabled'?'معطل':(s.online?'Online':'Offline');return `<div class="device-card ${s.state==='disabled'?'disabled':''} ${!s.online?'offline':''}"><div class="device-head"><div class="device-icon">⚡</div><div class="device-ident"><div class="device-name">${esc(s.name||s.mac)}</div><div class="device-model">MTTL-W01 · ${esc(s.mac.slice(-6))}</div></div><span class="device-state ${statusClass}">● ${statusText}</span></div><div class="device-metrics"><div class="metric"><b>${Number(s.total_power_w||0).toFixed(1)} W</b><span>الاستهلاك</span></div><div class="metric"><b>${s.voltage_v!=null?Number(s.voltage_v).toFixed(1):'—'} V</b><span>الجهد</span></div><div class="metric"><b>${s.wifi_rssi_dbm!=null?s.wifi_rssi_dbm:'—'} dBm</b><span>Wi‑Fi</span></div><div class="metric"><b>${healthScore||'—'}%</b><span>Health</span></div></div><div class="socket-grid">${outs}</div><div class="device-footer"><div class="health-pill"><span class="health-dot ${healthClass}"></span><span>${s.mapped_count||0} أجهزة مربوطة · ${esc(s.health?.status||'Unknown')}</span></div><details class="device-menu"><summary>⋯</summary><div class="device-menu-pop"><button onclick="openRename('${s.mac}')">تغيير الاسم</button><button onclick="toggleStrip('${s.mac}',${!s.enabled})">${s.enabled?'تعطيل مؤقت':'تفعيل'}</button><button onclick="openReplace('${s.mac}')">استبدال المشترك</button><button class="danger" onclick="removeStrip('${s.mac}')">إزالة المشترك</button></div></details></div><details class="advanced"><summary>تفاصيل الجهاز</summary><div class="kv"><span class="muted">MAC</span><span class="mono">${esc(s.mac)}</span><span class="muted">IP</span><span class="mono">${esc(s.last_ip||'-')}</span><span class="muted">Firmware</span><span class="mono">${esc(s.firmware_version||'-')}</span><span class="muted">Last Seen</span><span class="mono">${esc(s.last_seen_at||'-')}</span></div></details></div>`}).join('')}
+function renderManaged(){
+  const root=document.getElementById('managedStrips');
+  let arr=activeStrips();
+  if(stripSearchValue){
+    arr=arr.filter(s=>{
+      const mapped=[];
+      for(let n=1;n<=4;n++){const id=mappingFor(s.mac,n);if(id)mapped.push(ps4Name(id))}
+      const hay=[s.name,s.mac,s.room,...mapped].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(stripSearchValue);
+    });
+  }
+  if(!arr.length){
+    root.innerHTML='<div class="devices-empty"><b>No strips found</b><br><span>'+(stripSearchValue?'Try another search.':'Add your first strip to start controlling outlets.')+'</span></div>';
+    return;
+  }
+  root.innerHTML=arr.map(s=>{
+    const can=s.online&&s.enabled&&s.state==='active';
+    const status=s.state==='disabled'?'DISABLED':(s.online?'ONLINE':'OFFLINE');
+    let outs='';
+    for(let n=1;n<=4;n++){
+      const o=(s.outlets||[]).find(x=>Number(x.channel)===n);
+      const pid=mappingFor(s.mac,n);
+      const name=pid?ps4Name(pid):`Outlet ${n}`;
+      const isOn=!!o?.relay;
+      outs+=`<div class="outlet-tile ${isOn?'on':''} ${can?'':'unavailable'}" ${can?`onclick="powerOutlet('${s.mac}',${n},${!isOn})"`:''}>
+        <div class="socket-circle">Ⅱ</div>
+        <div class="outlet-name" dir="auto">${esc(name)}</div>
+        <div class="outlet-state">${isOn?'ON':'OFF'}</div>
+        <div class="outlet-power">${Number(o?.power_w||0).toFixed(1)} W</div>
+      </div>`;
+    }
+    const room=s.room?esc(s.room):'Local strip';
+    const health=s.health?.status?String(s.health.status).replaceAll('_',' '):'unknown';
+    return `<section class="strip-card ${!s.online?'offline':''} ${s.state==='disabled'?'disabled':''}">
+      <div class="strip-card-head">
+        <span class="strip-status-dot"></span>
+        <div class="strip-title" dir="auto">${esc(s.name||s.mac)}</div>
+        <span class="online-pill ${s.online?'':'offline'}">${status}</span>
+        <details class="device-menu strip-menu-wrap">
+          <summary class="gear-btn">⚙</summary>
+          <div class="device-menu-pop">
+            <button onclick="openRename('${s.mac}')">Rename</button>
+            <button onclick="toggleStrip('${s.mac}',${!s.enabled})">${s.enabled?'Disable':'Enable'}</button>
+            <button onclick="openReplace('${s.mac}')">Replace strip</button>
+            <button class="danger" onclick="removeStrip('${s.mac}')">Remove strip</button>
+          </div>
+        </details>
+      </div>
+      <div class="strip-subrow"><span>${room} · ${esc(health)}</span><span class="strip-watts">${Number(s.total_power_w||0).toFixed(1)} W</span></div>
+      <div class="outlet-grid">${outs}</div>
+      <div class="strip-bulk">
+        <button class="bulk-btn on" ${can?'':'disabled'} onclick="turnStrip('${s.mac}',true)">Turn all on</button>
+        <button class="bulk-btn" ${can?'':'disabled'} onclick="turnStrip('${s.mac}',false)">Turn all off</button>
+      </div>
+      <details class="strip-details"><summary>Device details · ${s.voltage_v!=null?Number(s.voltage_v).toFixed(1)+' V':'—'} · Wi-Fi ${s.wifi_rssi_dbm!=null?s.wifi_rssi_dbm+' dBm':'—'} · Health ${s.health?.score??'—'}%</summary>
+        <div class="kv"><span class="muted">MAC</span><span class="mono">${esc(s.mac)}</span><span class="muted">IP</span><span class="mono">${esc(s.last_ip||'-')}</span><span class="muted">Firmware</span><span class="mono">${esc(s.firmware_version||'-')}</span></div>
+      </details>
+    </section>`;
+  }).join('');
+}
 function renderPending(){const root=document.getElementById('pendingStrips'),arr=pendingStrips().filter(s=>s.online);if(!arr.length){root.innerHTML='<div class="empty"><b>في انتظار مشترك جديد...</b><br><span class="muted">أول ما المشترك يتصل بـ TCP 10086 هيظهر هنا تلقائيًا.</span></div>';return}root.innerHTML='<div class="pending-grid">'+arr.map(s=>`<div class="pending"><div class="strip-head"><div><div class="strip-name">تم اكتشاف مشترك جديد</div><div class="muted">Online الآن</div></div><span class="status online">● Online</span></div><details class="advanced"><summary>بيانات الجهاز</summary><div class="kv"><span class="muted">MAC</span><span class="mono">${esc(s.mac)}</span><span class="muted">IP</span><span class="mono">${esc(s.last_ip||'-')}</span><span class="muted">Firmware</span><span class="mono">${esc(s.firmware_version||'-')}</span></div></details><input id="adopt-${s.mac}" class="field" style="margin-top:12px" value="مشترك ${esc(s.mac.slice(-4))}" placeholder="اسم المشترك"><div class="actions" style="margin-top:10px"><button class="btn green" onclick="adoptStrip('${s.mac}')">إضافة المشترك</button><button class="btn ghost" onclick="ignoreStrip('${s.mac}')">تجاهل</button></div></div>`).join('')+'</div>'}
 function availableOptions(currentId){let html='<option value="">— غير مربوط —</option>';for(const s of activeStrips().filter(x=>x.enabled&&x.state==='active')){for(let n=1;n<=4;n++){const assigned=mappingFor(s.mac,n);if(assigned&&String(assigned)!==String(currentId))continue;html+=`<option value="${s.mac}:${n}">${esc(s.name||s.mac)} / Outlet ${n}${s.online?'':' (Offline)'}</option>`}}return html}
 function savedMappingValue(id){const m=(data.mappings||{})[id];return m?`${m.mac}:${m.outlet}`:''}
@@ -70,7 +256,12 @@ function cancelMapping(encoded){const id=String(decodeURIComponent(encoded));del
 function renderMappings(force=false){const root=document.getElementById('mappings');if(!force&&root.children.length&&mappingEditorLocked())return;if(!data.ps4_devices.length){root.innerHTML='<div class="empty">أجهزة PlayZone ستظهر هنا تلقائيًا بعد المزامنة.</div>';return}root.innerHTML=data.ps4_devices.map(p=>{const id=String(p.id),m=data.mappings[p.id],strip=m?stripByMac(m.mac):null,dirty=mappingDirty.has(id);return `<div class="mapping ${dirty?'mapping-dirty':''}" data-map-id="${esc(id)}"><div><b>${esc(p.name)}</b><div class="muted">${esc(p.id)}</div>${m&&strip?.state==='disabled'?'<span class="status disabled">المشترك معطل — الربط محفوظ</span>':''}${dirty?'<div class="mapping-note">● تغيير غير محفوظ</div>':''}</div><select class="field" id="map-${encodeURIComponent(p.id)}" onchange="stageMapping('${encodeURIComponent(p.id)}')">${availableOptions(p.id)}</select><div class="mapping-actions"><button class="btn ${dirty?'green':'blue'} mapping-save" onclick="saveMapping('${encodeURIComponent(p.id)}')">${dirty?'حفظ التغيير':'حفظ الربط'}</button>${dirty?`<button class="btn ghost" onclick="cancelMapping('${encodeURIComponent(p.id)}')">إلغاء</button>`:''}</div></div>`}).join('');for(const p of data.ps4_devices){const id=String(p.id),m=data.mappings[p.id],el=document.getElementById(`map-${encodeURIComponent(p.id)}`);if(!el)continue;let value=mappingDirty.has(id)?(mappingDrafts[id]??''):savedMappingValue(p.id);if(value){let opt=[...el.options].find(o=>o.value===value);if(!opt&&m&&value===`${m.mac}:${m.outlet}`){opt=document.createElement('option');opt.value=value;opt.textContent=`الربط الحالي: ${stripByMac(m.mac)?.name||m.mac} / Outlet ${m.outlet}`;el.prepend(opt)}if(opt)el.value=value}else el.value=''}}
 function renderHistory(){const root=document.getElementById('historyStrips');const arr=data.strips.filter(s=>!s.managed&&!['pending'].includes(s.state));if(!arr.length){root.innerHTML='<div class="empty">لا يوجد سجل لمشتركات متجاهلة أو مستبدلة أو تمت إزالتها.</div>';return}const labels={ignored:'متجاهل',removed:'تمت إزالته',replaced:'تم استبداله'};root.innerHTML=arr.map(s=>`<div class="history-item"><div class="strip-head"><div><b>${esc(s.name||s.mac)}</b><div class="muted">${labels[s.state]||esc(s.state)} ${s.online?'· Online الآن':''}</div></div><div class="actions">${s.online?`<button class="btn green sm" onclick="adoptStrip('${s.mac}',true)">إضافة من جديد</button>`:''}</div></div><details class="advanced"><summary>التفاصيل</summary><div class="kv"><span>MAC</span><span class="mono">${esc(s.mac)}</span><span>IP</span><span class="mono">${esc(s.last_ip||'-')}</span>${s.replaced_by?`<span>استُبدل بـ</span><span class="mono">${esc(s.replaced_by)}</span>`:''}</div></details></div>`).join('')}
 function renderTargets(){const outletOptions=activeStrips().map(s=>{let x='';for(let n=1;n<=4;n++)x+=`<option value="${s.mac}:${n}">${esc(s.name||s.mac)} / Outlet ${n}</option>`;return x}).join('');if(document.getElementById('scheduleTarget'))scheduleTarget.innerHTML=outletOptions||'<option value="">لا يوجد مشترك فعال</option>';if(document.getElementById('energyTarget'))energyTarget.innerHTML=activeStrips().map(s=>`<option value="${s.mac}">${esc(s.name||s.mac)}</option>`).join('')||'<option value="">لا يوجد مشترك فعال</option>'}
-async function loadAutomation(){try{automationData=await api('/voltra/api/automation');const schedules=Object.values(automationData.schedules||{});const queued=automationData.queue||[];automationList.innerHTML=`<div class="good">جداول: ${schedules.length} · أوامر معلقة: ${queued.length}</div>`+schedules.map(s=>`<div class="history-item"><div class="strip-head"><div><b>${esc(stripByMac(s.mac)?.name||s.mac)} / Outlet ${s.outlet}</b><div class="muted">${s.time} · ${s.on?'تشغيل':'إيقاف'} · Offline: ${esc(s.offline_policy)}</div></div><button class="btn red sm" onclick="deleteSchedule('${s.id}')">حذف</button></div></div>`).join('')}catch(e){toast(e.message,true)}}
+async function loadAutomation(){try{
+  automationData=await api('/voltra/api/automation');
+  const schedules=Object.values(automationData.schedules||{}),queued=automationData.queue||[];
+  if(document.getElementById('planCount'))planCount.textContent=schedules.filter(x=>x.enabled!==false).length;
+  automationList.innerHTML=`<div class="good">جداول: ${schedules.length} · أوامر معلقة: ${queued.length}</div>`+schedules.map(s=>`<div class="history-item"><div class="strip-head"><div><b>${esc(stripByMac(s.mac)?.name||s.mac)} / Outlet ${s.outlet}</b><div class="muted">${s.time} · ${s.on?'تشغيل':'إيقاف'} · Offline: ${esc(s.offline_policy)}</div></div><button class="btn red sm" onclick="deleteSchedule('${s.id}')">حذف</button></div></div>`).join('');
+}catch(e){toast(e.message,true)}}
 async function createSchedule(){const v=scheduleTarget.value;if(!v)return toast('اختر مخرج',true);const cut=v.lastIndexOf(':'),mac=v.slice(0,cut),outlet=Number(v.slice(cut+1));try{await api('/voltra/api/schedules',{method:'POST',body:JSON.stringify({mac,outlet,on:scheduleAction.value==='on',time:scheduleTime.value,days:[0,1,2,3,4,5,6],offline_policy:'queue'})});await loadAutomation();toast('تمت إضافة الجدول')}catch(e){toast(e.message,true)}}
 async function deleteSchedule(id){try{await api('/voltra/api/schedules/'+encodeURIComponent(id),{method:'DELETE'});await loadAutomation();toast('تم حذف الجدول')}catch(e){toast(e.message,true)}}
 async function clearQueue(){try{const r=await api('/voltra/api/queue',{method:'DELETE'});await loadAutomation();toast('تم مسح '+(r.cleared||0)+' أمر')}catch(e){toast(e.message,true)}}
@@ -85,9 +276,21 @@ async function removeStrip(mac){const s=stripByMac(mac),count=s?.mapped_count||0
 function openRename(mac){renameMac=mac;renameValue.value=stripByMac(mac)?.name||'';renameModal.classList.add('show')}async function saveRename(){try{await api(`/voltra/api/strips/${renameMac}`,{method:'PUT',body:JSON.stringify({name:renameValue.value})});closeModal('renameModal');await refresh();toast('تم تغيير الاسم')}catch(e){toast(e.message,true)}}
 function openReplace(mac){replaceOldMac=mac;const s=stripByMac(mac),c=candidateReplacementStrips(mac);replaceOldInfo.textContent=`${s?.name||mac} — سيتم نقل ${s?.mapped_count||0} ربط بنفس أرقام الـOutlets.`;replaceSelect.innerHTML=c.length?c.map(x=>`<option value="${x.mac}">${esc(x.name||('مشترك '+x.mac.slice(-4)))} — ${esc(x.last_ip||x.mac)}</option>`).join(''):'<option value="">لا يوجد مشترك جديد Online جاهز للاستبدال</option>';replaceModal.classList.add('show')}
 async function confirmReplace(){const newMac=replaceSelect.value;if(!newMac)return toast('وصل المشترك الجديد أولًا حتى يظهر في القائمة',true);const old=stripByMac(replaceOldMac),nw=stripByMac(newMac);if(!confirm(`استبدال ${old?.name||replaceOldMac} بالمشترك ${nw?.name||newMac} ونقل الربط؟`))return;try{const r=await api(`/voltra/api/strips/${replaceOldMac}/replace`,{method:'POST',body:JSON.stringify({new_mac:newMac})});closeModal('replaceModal');await refresh();toast(`تم الاستبدال ونقل ${r.transferred_devices?.length||0} جهاز`)}catch(e){toast(e.message,true)}}
+async function turnStrip(mac,on){
+  const s=stripByMac(mac);if(!s)return;
+  if(!confirm((on?'Turn all outlets ON in ':'Turn all outlets OFF in ')+(s.name||mac)+'?'))return;
+  try{
+    for(let n=1;n<=4;n++){
+      const o=(s.outlets||[]).find(x=>Number(x.channel)===n);
+      if(Boolean(o?.relay)===Boolean(on))continue;
+      await api(`/voltra/api/strips/${mac}/outlets/${n}/state`,{method:'POST',body:JSON.stringify({on})});
+    }
+    await refresh();toast(on?'All outlets are on':'All outlets are off');
+  }catch(e){toast(e.message,true);await refresh()}
+}
 async function powerOutlet(mac,outlet,on){const s=stripByMac(mac);if(!confirm(`${on?'تشغيل':'إيقاف'} Outlet ${outlet} في ${s?.name||mac}؟\nالتحكم مخصص للشاشة فقط.`))return;try{await api(`/voltra/api/strips/${mac}/outlets/${outlet}/state`,{method:'POST',body:JSON.stringify({on})});await refresh();toast('تم تنفيذ الأمر')}catch(e){toast(e.message,true)}}
 async function saveMapping(encoded){const id=String(decodeURIComponent(encoded)),el=document.getElementById(`map-${encodeURIComponent(id)}`);if(!el||mappingSaving.has(id))return;const v=el.value,row=el.closest('.mapping'),btn=row?.querySelector('.mapping-save');mappingSaving.add(id);el.disabled=true;if(btn){btn.disabled=true;btn.textContent='جاري الحفظ...'}try{if(!v)await api(`/voltra/api/ps4/${encodeURIComponent(id)}/power-mapping`,{method:'DELETE'});else{const cut=v.lastIndexOf(':'),mac=v.slice(0,cut),outlet=v.slice(cut+1);if(cut<1||!outlet)throw new Error('اختيار الربط غير صالح');await api(`/voltra/api/ps4/${encodeURIComponent(id)}/power-mapping`,{method:'PUT',body:JSON.stringify({mac,outlet:Number(outlet)})})}delete mappingDrafts[id];mappingDirty.delete(id);toast('تم حفظ الربط');await refresh(true)}catch(e){el.disabled=false;if(btn){btn.disabled=false;btn.textContent='حفظ التغيير'}toast(e.message,true)}finally{mappingSaving.delete(id)}}
 async function provision(){if(!wifiSsid.value||!serverIp.value)return toast('اكتب اسم شبكة Wi‑Fi وIP جهاز PlayZone',true);if(!confirm('تأكد أن جهاز PlayZone قادر على الوصول إلى شبكة TONLY_TAP الخاصة بالمشترك. متابعة؟'))return;try{await api('/voltra/api/provision',{method:'POST',body:JSON.stringify({ssid:wifiSsid.value,password:wifiPassword.value,server_ip:serverIp.value})});wifiPassword.value='';toast('تم إرسال الإعدادات. انتظر Reboot وظهور المشترك في صفحة الإضافة.');setTimeout(()=>{refresh();goTab('discover')},2500)}catch(e){toast(e.message,true)}}
 function setupPlayZoneScrollbar(){if(!playzoneMode)return;document.documentElement.classList.add('playzone-embedded');const track=document.createElement('div');track.id='pzVoltraScrollTrack';track.setAttribute('aria-hidden','true');track.innerHTML='<div id="pzVoltraScrollThumb"></div>';document.body.appendChild(track);const thumb=track.firstElementChild;let drag=null;function update(){const s=document.scrollingElement||document.documentElement,total=s.scrollHeight,view=s.clientHeight,max=Math.max(0,total-view);if(total<=view+2){track.classList.add('hidden');return}track.classList.remove('hidden');const th=Math.max(30,Math.round(track.clientHeight*view/total)),travel=Math.max(1,track.clientHeight-th),top=max?Math.round(travel*s.scrollTop/max):0;thumb.style.height=th+'px';thumb.style.transform='translateY('+top+'px)'}thumb.addEventListener('pointerdown',e=>{const s=document.scrollingElement||document.documentElement;drag={id:e.pointerId,y:e.clientY,top:s.scrollTop};thumb.setPointerCapture?.(e.pointerId);track.classList.add('dragging');e.preventDefault()});thumb.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const s=document.scrollingElement||document.documentElement,max=Math.max(0,s.scrollHeight-s.clientHeight),travel=Math.max(1,track.clientHeight-thumb.offsetHeight);s.scrollTop=drag.top+((e.clientY-drag.y)/travel)*max;e.preventDefault()});const stop=e=>{if(!drag||(e?.pointerId!=null&&drag.id!==e.pointerId))return;drag=null;track.classList.remove('dragging')};thumb.addEventListener('pointerup',stop);thumb.addEventListener('pointercancel',stop);track.addEventListener('pointerdown',e=>{if(e.target===thumb)return;const s=document.scrollingElement||document.documentElement,r=track.getBoundingClientRect(),ratio=Math.max(0,Math.min(1,(e.clientY-r.top)/Math.max(1,r.height))),max=Math.max(0,s.scrollHeight-s.clientHeight);s.scrollTo({top:ratio*max,behavior:'smooth'})});window.addEventListener('scroll',update,{passive:true});window.addEventListener('resize',update,{passive:true});new ResizeObserver(update).observe(document.documentElement);update()}
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{goTab(b.dataset.page);if(b.dataset.page==='automation')loadAutomation()});setupPlayZoneScrollbar();refresh();liveLoop();setInterval(refresh,15000)
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>goTab(b.dataset.page));if(localStorage.getItem('voltra_bright_ui')==='1')document.body.classList.add('bright-ui');setupPlayZoneScrollbar();refresh().then(loadAutomation);liveLoop();setInterval(refresh,15000)
 </script></body></html>'''
