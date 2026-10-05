@@ -86,9 +86,16 @@ When provisioning a strip, store **CASAOS-LAN-IP** as its server IP. Do not use 
 container's internal Docker address.
 
 If the CasaOS host is Ethernet-only, the built-in web provisioning page cannot reach the
-strip's temporary `TONLY_TAP_...` Wi-Fi AP by itself. In that case, perform the initial
-provisioning from a laptop/phone that can join the strip AP, using the CasaOS LAN IP as
-the target server. After that, the strip connects directly to Voltra on TCP 10086.
+strip's temporary `TONLY_TAP_...` Wi-Fi AP by itself. In that case, connect a laptop to
+the strip AP and run:
+
+```bash
+python -m voltra_local.provision_cli --server-ip CASAOS-LAN-IP --ssid "YOUR_2.4G_WIFI"
+```
+
+The Wi-Fi password is requested securely. The tool sends the server-IP command and Wi-Fi
+command using separate setup connections. After provisioning, reconnect the laptop to the
+normal LAN; the strip should connect directly to Voltra on TCP 10086.
 
 Useful commands:
 
