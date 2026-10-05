@@ -1,0 +1,41 @@
+name: container
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile"
+      - "voltra_local/**"
+      - ".github/workflows/container.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/ayman-helmy/voltra-local-mini-server:latest
+            ghcr.io/ayman-helmy/voltra-local-mini-server:0.14.0
+          labels: |
+            org.opencontainers.image.source=https://github.com/aYmAn-Helmy/voltra-local-mini-server
+            org.opencontainers.image.title=Voltra Local Mini Server
+            org.opencontainers.image.version=0.14.0
