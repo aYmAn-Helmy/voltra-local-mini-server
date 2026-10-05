@@ -38,7 +38,14 @@ fi
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
 
-HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+HOST_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')"
+if [ -z "$HOST_IP" ]; then
+  HOST_IP="$(hostname -I 2>/dev/null | tr ' ' '\n' | awk '
+    /^127\./ {next}
+    /^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./ {next}
+    {print; exit}
+  ')"
+fi
 TOKEN="$(sed -n 's/^VOLTRA_API_TOKEN=//p' "$ENV_FILE" | head -n1)"
 
 echo
