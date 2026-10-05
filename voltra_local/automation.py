@@ -102,21 +102,42 @@ class AutomationEngine:
         on = value.get("on")
         if not isinstance(on, bool):
             raise ValueError("on must be boolean")
-        at = str(value.get("time") or "").strip()
-        self._parse_time(at)
-        days = value.get("days", list(range(7)))
-        if not isinstance(days, list) or not days or any((not isinstance(x, int) or x < 0 or x > 6) for x in days):
-            raise ValueError("days must contain weekday numbers 0..6")
+
         offline_policy = str(value.get("offline_policy") or "queue")
         if offline_policy not in {"queue", "skip"}:
             raise ValueError("offline_policy must be queue or skip")
+
+        run_at_raw = str(value.get("run_at") or "").strip()
+        if run_at_raw:
+            try:
+                run_at_dt = datetime.fromisoformat(run_at_raw.replace("Z", "+00:00"))
+            except ValueError:
+                raise ValueError("run_at must be an ISO-8601 datetime")
+            if run_at_dt.tzinfo is None:
+                run_at_dt = run_at_dt.astimezone()
+            run_at = run_at_dt.astimezone(timezone.utc).isoformat()
+            at = None
+            days = []
+            schedule_type = "once"
+        else:
+            at = str(value.get("time") or "").strip()
+            self._parse_time(at)
+            days = value.get("days", list(range(7)))
+            if not isinstance(days, list) or not days or any((not isinstance(x, int) or x < 0 or x > 6) for x in days):
+                raise ValueError("days must contain weekday numbers 0..6")
+            days = sorted(set(days))
+            run_at = None
+            schedule_type = "recurring"
+
         item = {
             "id": uuid4().hex,
             "mac": mac,
             "outlet": outlet,
             "on": on,
+            "type": schedule_type,
             "time": at,
-            "days": sorted(set(days)),
+            "days": days,
+            "run_at": run_at,
             "enabled": bool(value.get("enabled", True)),
             "offline_policy": offline_policy,
             "max_queue_age_minutes": max(1, min(int(value.get("max_queue_age_minutes") or 360), 10080)),
@@ -128,6 +149,20 @@ class AutomationEngine:
             self._save_locked()
         self._event("schedule_created", item=item)
         return dict(item)
+
+    def create_countdown(self, value: dict) -> dict:
+        try:
+            delay_seconds = int(value.get("delay_seconds"))
+        except (TypeError, ValueError):
+            raise ValueError("delay_seconds must be an integer")
+        delay_seconds = max(1, min(delay_seconds, 30 * 24 * 60 * 60))
+        run_at = datetime.now(timezone.utc).timestamp() + delay_seconds
+        payload = dict(value)
+        payload["run_at"] = datetime.fromtimestamp(run_at, timezone.utc).isoformat()
+        payload.pop("delay_seconds", None)
+        item = self.create_schedule(payload)
+        item["delay_seconds"] = delay_seconds
+        return item
 
     def delete_schedule(self, schedule_id: str) -> bool:
         with self._lock:
@@ -215,17 +250,38 @@ class AutomationEngine:
 
     def _run_schedules(self, snapshots: list[dict]) -> None:
         local_now = datetime.now().astimezone()
+        utc_now_dt = datetime.now(timezone.utc)
         run_key = local_now.strftime("%Y-%m-%dT%H:%M")
         clock = local_now.strftime("%H:%M")
         weekday = local_now.weekday()
         changed = False
         with self._lock:
             schedules = list(self._data["schedules"].values())
+
         for item in schedules:
-            if not item.get("enabled") or item.get("time") != clock or weekday not in item.get("days", []):
+            if not item.get("enabled"):
                 continue
-            if item.get("last_run_key") == run_key:
-                continue
+
+            is_once = str(item.get("type") or "") == "once" or bool(item.get("run_at"))
+            if is_once:
+                if item.get("last_run_at"):
+                    continue
+                try:
+                    target = datetime.fromisoformat(str(item.get("run_at")).replace("Z", "+00:00"))
+                except (ValueError, TypeError):
+                    continue
+                if target.tzinfo is None:
+                    target = target.astimezone()
+                if utc_now_dt < target.astimezone(timezone.utc):
+                    continue
+                schedule_run_key = f"once:{item['id']}"
+            else:
+                if item.get("time") != clock or weekday not in item.get("days", []):
+                    continue
+                if item.get("last_run_key") == run_key:
+                    continue
+                schedule_run_key = run_key
+
             self._execute_or_queue(
                 item["mac"],
                 int(item["outlet"]),
@@ -238,9 +294,12 @@ class AutomationEngine:
             with self._lock:
                 live = self._data["schedules"].get(item["id"])
                 if live:
-                    live["last_run_key"] = run_key
+                    live["last_run_key"] = schedule_run_key
                     live["last_run_at"] = utc_now()
+                    if is_once:
+                        live["enabled"] = False
                     changed = True
+
         if changed:
             with self._lock:
                 self._save_locked()
