@@ -53,6 +53,54 @@ docker compose -f docker-compose.demo.yml down -v
 The fake strip will appear in **Add Device / إضافة مشترك**. Adopt it to test outlet
 control, voltage, Wi-Fi RSSI, energy telemetry, schedules, health, and live updates.
 
+## Real hardware on CasaOS / Docker
+
+For a real MTTL-W01 test, use the CasaOS/Docker host's **LAN IP** as the Voltra server IP.
+Give that host a static address or DHCP reservation first.
+
+Create the environment file:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and replace `VOLTRA_API_TOKEN` with a long random token, then start:
+
+```bash
+docker compose -f docker-compose.real.yml up -d --build
+```
+
+Open the dashboard from another LAN device:
+
+```text
+http://CASAOS-LAN-IP:8086/voltra
+```
+
+The real strip must be able to reach:
+
+```text
+CASAOS-LAN-IP:10086/TCP
+```
+
+When provisioning a strip, store **CASAOS-LAN-IP** as its server IP. Do not use the
+container's internal Docker address.
+
+If the CasaOS host is Ethernet-only, the built-in web provisioning page cannot reach the
+strip's temporary `TONLY_TAP_...` Wi-Fi AP by itself. In that case, perform the initial
+provisioning from a laptop/phone that can join the strip AP, using the CasaOS LAN IP as
+the target server. After that, the strip connects directly to Voltra on TCP 10086.
+
+Useful commands:
+
+```bash
+docker compose -f docker-compose.real.yml ps
+docker compose -f docker-compose.real.yml logs -f
+docker compose -f docker-compose.real.yml restart
+docker compose -f docker-compose.real.yml down
+```
+
+Persistent data is kept in the `voltra_data` Docker volume.
+
 ## Run
 
 ```bash
