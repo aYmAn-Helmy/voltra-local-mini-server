@@ -46,19 +46,10 @@ def main() -> None:
     command_attempts = env_int("VOLTRA_COMMAND_ATTEMPTS", 2)
     confirm_delay = env_float("VOLTRA_COMMAND_CONFIRM_DELAY", 0.15)
     rate_limit = env_int("VOLTRA_RATE_LIMIT_PER_MINUTE", 60)
-    api_token = os.getenv("VOLTRA_API_TOKEN", "")
     cors_origin = os.getenv("VOLTRA_CORS_ORIGIN", "*")
-    allow_insecure_remote = env_bool("VOLTRA_ALLOW_INSECURE_REMOTE", False)
     demo = env_bool("VOLTRA_DEMO", False)
     data_dir = Path(os.getenv("VOLTRA_DATA_DIR", "data"))
     store = ConfigStore(data_dir / "voltra.json")
-
-    loopback_hosts = {"127.0.0.1", "::1", "localhost"}
-    if http_bind not in loopback_hosts and not api_token and not allow_insecure_remote:
-        raise RuntimeError(
-            "remote HTTP bind requires VOLTRA_API_TOKEN; "
-            "set VOLTRA_ALLOW_INSECURE_REMOTE=1 only on a trusted LAN"
-        )
 
     print(f"[APP] Voltra Local Mini Server v{__version__}")
     print(f"[APP] demo={'ON' if demo else 'OFF'}")
@@ -112,7 +103,6 @@ def main() -> None:
         http_bind,
         http_port,
         store=store,
-        api_token=api_token,
         cors_origin=cors_origin,
         automation=automation,
         telemetry=telemetry,
