@@ -16,3 +16,27 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m unittest discover -s tests -v
+
+  demo-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start demo container
+        run: docker compose -f docker-compose.demo.yml up -d --build
+      - name: Wait for health endpoint
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8086/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker compose -f docker-compose.demo.yml logs
+          exit 1
+      - name: Smoke test dashboard
+        run: curl --fail --silent http://127.0.0.1:8086/voltra >/dev/null
+      - name: Show container status
+        run: docker compose -f docker-compose.demo.yml ps
+      - name: Stop demo container
+        if: always()
+        run: docker compose -f docker-compose.demo.yml down -v
