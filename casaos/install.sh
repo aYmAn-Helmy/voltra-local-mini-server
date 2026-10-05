@@ -18,24 +18,18 @@ fi
 mkdir -p "$DATA_DIR"
 
 if [ ! -f "$ENV_FILE" ]; then
-  if command -v openssl >/dev/null 2>&1; then
-    TOKEN="$(openssl rand -hex 24)"
-  else
-    TOKEN="$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
-  fi
   cat > "$ENV_FILE" <<EOF
-VOLTRA_API_TOKEN=$TOKEN
 VOLTRA_CORS_ORIGIN=*
 VOLTRA_POLL_INTERVAL=10
 VOLTRA_DIAGNOSTICS_INTERVAL=30
 VOLTRA_TELEMETRY_INTERVAL=60
 EOF
   chmod 600 "$ENV_FILE"
-  echo "Created $ENV_FILE with a new API token."
+  echo "Created $ENV_FILE."
 else
-  echo "Using existing $ENV_FILE."
+  sed -i '/^VOLTRA_API_TOKEN=/d' "$ENV_FILE" || true
+  echo "Using existing $ENV_FILE (API token removed/ignored)."
 fi
-
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
 
 HOST_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')"
@@ -46,12 +40,9 @@ if [ -z "$HOST_IP" ]; then
     {print; exit}
   ')"
 fi
-TOKEN="$(sed -n 's/^VOLTRA_API_TOKEN=//p' "$ENV_FILE" | head -n1)"
-
 echo
 echo "Voltra is starting."
 echo "Dashboard: http://${HOST_IP:-CASAOS-IP}:8086/voltra"
 echo "Device TCP: ${HOST_IP:-CASAOS-IP}:10086"
-echo "API token: $TOKEN"
 echo
 echo "Use the CasaOS LAN IP as server IP when provisioning MTTL-W01 strips."
