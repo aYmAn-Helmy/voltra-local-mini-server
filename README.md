@@ -4,7 +4,7 @@ Local-first server for LG U+ / TONLY MTTL-W01 smart power strips.
 
 ## Current release
 
-**v0.14.0**
+**v0.14.1**
 
 Key capabilities:
 
@@ -20,6 +20,7 @@ Key capabilities:
 - Backup/restore for Voltra configuration and automation
 - Audit log and write rate limiting
 - Separate TCP and HTTP bind addresses
+- Tokenless standalone LAN dashboard/API
 
 ## Quick demo with Docker
 
@@ -71,8 +72,7 @@ chmod +x casaos/install.sh
 ./casaos/install.sh
 ```
 
-The installer generates a random API token in `.env.casaos`, builds the image locally,
-starts the container, and prints the dashboard URL and token.
+The installer builds the image locally, starts the container, and prints the dashboard URL.
 
 Dashboard:
 
@@ -106,7 +106,7 @@ Create the environment file:
 cp .env.example .env
 ```
 
-Edit `.env` and replace `VOLTRA_API_TOKEN` with a long random token, then start:
+Then start:
 
 ```bash
 docker compose -f docker-compose.real.yml up -d --build
@@ -162,21 +162,12 @@ Defaults:
 - Dashboard/API: `127.0.0.1:8086`
 - Data directory: `./data`
 
-To expose the dashboard/API on a LAN, configure a token:
-
-```bash
-VOLTRA_HTTP_BIND=0.0.0.0
-VOLTRA_API_TOKEN=replace-with-a-long-random-token
-python -m voltra_local.app
-```
-
 Important environment variables:
 
 - `VOLTRA_TCP_BIND`
 - `VOLTRA_HTTP_BIND`
 - `VOLTRA_TCP_PORT`
 - `VOLTRA_HTTP_PORT`
-- `VOLTRA_API_TOKEN`
 - `VOLTRA_CORS_ORIGIN`
 - `VOLTRA_POLL_INTERVAL`
 - `VOLTRA_DIAGNOSTICS_INTERVAL`
@@ -185,8 +176,6 @@ Important environment variables:
 - `VOLTRA_COMMAND_CONFIRM_DELAY`
 - `VOLTRA_RATE_LIMIT_PER_MINUTE`
 - `VOLTRA_DATA_DIR`
-
-`VOLTRA_ALLOW_INSECURE_REMOTE=1` exists only for explicitly trusted environments. Remote HTTP binding without an API token is rejected by default.
 
 ## API additions
 
