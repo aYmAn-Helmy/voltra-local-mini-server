@@ -12,6 +12,7 @@ services:
       VOLTRA_HTTP_BIND: "0.0.0.0"
       VOLTRA_HTTP_PORT: "8086"
       VOLTRA_TCP_PORT: "10086"
+      VOLTRA_DISCOVERY_PORT: "10087"
       VOLTRA_CORS_ORIGIN: "${VOLTRA_CORS_ORIGIN:-*}"
       VOLTRA_POLL_INTERVAL: "${VOLTRA_POLL_INTERVAL:-10}"
       VOLTRA_DIAGNOSTICS_INTERVAL: "${VOLTRA_DIAGNOSTICS_INTERVAL:-30}"
@@ -23,6 +24,7 @@ services:
     ports:
       - "${VOLTRA_HTTP_PORT_HOST:-8086}:8086/tcp"
       - "${VOLTRA_TCP_PORT_HOST:-10086}:10086/tcp"
+      - "${VOLTRA_DISCOVERY_PORT_HOST:-10087}:10087/udp"
     volumes:
       - voltra_data:/app/data
 
