@@ -12,6 +12,7 @@ services:
       VOLTRA_HTTP_BIND: "0.0.0.0"
       VOLTRA_HTTP_PORT: "8086"
       VOLTRA_TCP_PORT: "10086"
+      VOLTRA_DISCOVERY_PORT: "10087"
       VOLTRA_CORS_ORIGIN: "${VOLTRA_CORS_ORIGIN:-*}"
       VOLTRA_POLL_INTERVAL: "${VOLTRA_POLL_INTERVAL:-10}"
       VOLTRA_DIAGNOSTICS_INTERVAL: "${VOLTRA_DIAGNOSTICS_INTERVAL:-30}"
@@ -27,6 +28,9 @@ services:
       - target: 10086
         published: "10086"
         protocol: tcp
+      - target: 10087
+        published: "10087"
+        protocol: udp
     volumes:
       - type: bind
         source: /DATA/AppData/Voltra/data
@@ -43,6 +47,9 @@ services:
         - container: "10086"
           description:
             en_us: MTTL-W01 device TCP connection
+        - container: "10087"
+          description:
+            en_us: Voltra-X LAN discovery (UDP)
 
 x-casaos:
   id: com.voltra.local
