@@ -22,7 +22,21 @@ class ConfigStore:
         self._data = self._load()
 
     def _default(self) -> dict:
-        return {"version": 2, "strips": {}, "ps4_devices": {}, "mappings": {}}
+        return {
+            "version": 3,
+            "strips": {},
+            "ps4_devices": {},
+            "mappings": {},
+            "scenes": {},
+            "settings": {
+                "energy_price_per_kwh": 0.0,
+                "currency": "EGP",
+                "weak_wifi_dbm": -75,
+                "voltage_min_v": 200.0,
+                "voltage_max_v": 250.0,
+                "unusual_power_w": 1500.0,
+            },
+        }
 
     def _load(self) -> dict:
         if not self.path.exists():
@@ -34,9 +48,12 @@ class ConfigStore:
         if not isinstance(value, dict):
             return self._default()
         base = self._default()
-        for key in ("strips", "ps4_devices", "mappings"):
+        for key in ("strips", "ps4_devices", "mappings", "scenes"):
             item = value.get(key, {})
             base[key] = item if isinstance(item, dict) else {}
+        settings = value.get("settings", {})
+        if isinstance(settings, dict):
+            base["settings"].update(settings)
 
         # v1 -> v2 migration: any strip that was already stored by an older
         # PlayZone/Voltra build is treated as approved and active so existing
@@ -56,7 +73,7 @@ class ConfigStore:
                 state = str(meta.get("state") or "active")
                 meta.setdefault("managed", state == "active")
                 meta.setdefault("enabled", state == "active")
-        base["version"] = 2
+        base["version"] = 3
         return base
 
     def _save_locked(self) -> None:
@@ -397,6 +414,113 @@ class ConfigStore:
         with self._lock:
             return {key: dict(value) for key, value in self._data["mappings"].items()}
 
+    def set_strip_preferences(
+        self,
+        mac: str,
+        *,
+        room: str | None = None,
+        favorite: bool | None = None,
+        sort_order: int | None = None,
+    ) -> dict:
+        mac = self.normalize_mac(mac)
+        with self._lock:
+            current = self._data["strips"].get(mac)
+            if not isinstance(current, dict):
+                raise KeyError(f"unknown strip: {mac}")
+            if room is not None:
+                clean_room = str(room).strip()
+                if len(clean_room) > 80:
+                    raise ValueError("room name is too long")
+                current["room"] = clean_room
+            if favorite is not None:
+                current["favorite"] = bool(favorite)
+            if sort_order is not None:
+                current["sort_order"] = max(-100000, min(int(sort_order), 100000))
+            current["updated_at"] = utc_now()
+            self._save_locked()
+            return dict(current)
+
+    def scenes(self) -> list[dict]:
+        with self._lock:
+            values = [dict(item) for item in self._data["scenes"].values()]
+        values.sort(key=lambda item: (int(item.get("sort_order") or 0), str(item.get("name") or "").lower()))
+        return values
+
+    def upsert_scene(self, scene_id: str, name: str, actions: list[dict], sort_order: int = 0) -> dict:
+        scene_id = str(scene_id or "").strip()
+        name = str(name or "").strip()
+        if not scene_id or len(scene_id) > 80:
+            raise ValueError("invalid scene id")
+        if not name or len(name) > 100:
+            raise ValueError("invalid scene name")
+        if not isinstance(actions, list) or not actions or len(actions) > 128:
+            raise ValueError("scene actions must be a non-empty array")
+        clean_actions = []
+        for raw in actions:
+            if not isinstance(raw, dict):
+                raise ValueError("scene action must be an object")
+            mac = self.normalize_mac(str(raw.get("mac") or ""))
+            outlet = int(raw.get("outlet") or 0)
+            if outlet not in (1, 2, 3, 4):
+                raise ValueError("scene outlet must be 1..4")
+            on = raw.get("on")
+            if not isinstance(on, bool):
+                raise ValueError("scene on must be boolean")
+            clean_actions.append({"mac": mac, "outlet": outlet, "on": on})
+        with self._lock:
+            now = utc_now()
+            current = self._data["scenes"].get(scene_id)
+            item = {
+                "id": scene_id,
+                "name": name,
+                "actions": clean_actions,
+                "sort_order": max(-100000, min(int(sort_order), 100000)),
+                "created_at": (current or {}).get("created_at") or now,
+                "updated_at": now,
+            }
+            self._data["scenes"][scene_id] = item
+            self._save_locked()
+            return dict(item)
+
+    def delete_scene(self, scene_id: str) -> bool:
+        with self._lock:
+            existed = self._data["scenes"].pop(str(scene_id), None) is not None
+            if existed:
+                self._save_locked()
+            return existed
+
+    def settings(self) -> dict:
+        with self._lock:
+            return dict(self._data["settings"])
+
+    def update_settings(self, value: dict) -> dict:
+        if not isinstance(value, dict):
+            raise ValueError("settings must be an object")
+        with self._lock:
+            settings = self._data["settings"]
+            if "energy_price_per_kwh" in value:
+                price = float(value["energy_price_per_kwh"])
+                if price < 0 or price > 100000:
+                    raise ValueError("invalid energy price")
+                settings["energy_price_per_kwh"] = price
+            if "currency" in value:
+                currency = str(value["currency"] or "").strip().upper()
+                if not 2 <= len(currency) <= 8:
+                    raise ValueError("invalid currency")
+                settings["currency"] = currency
+            if "weak_wifi_dbm" in value:
+                settings["weak_wifi_dbm"] = max(-120, min(-20, int(value["weak_wifi_dbm"])))
+            if "voltage_min_v" in value:
+                settings["voltage_min_v"] = max(0.0, min(float(value["voltage_min_v"]), 400.0))
+            if "voltage_max_v" in value:
+                settings["voltage_max_v"] = max(0.0, min(float(value["voltage_max_v"]), 400.0))
+            if float(settings["voltage_min_v"]) >= float(settings["voltage_max_v"]):
+                raise ValueError("voltage_min_v must be below voltage_max_v")
+            if "unusual_power_w" in value:
+                settings["unusual_power_w"] = max(1.0, min(float(value["unusual_power_w"]), 50000.0))
+            self._save_locked()
+            return dict(settings)
+
     def export_data(self) -> dict:
         with self._lock:
             return json.loads(json.dumps(self._data))
@@ -407,13 +531,25 @@ class ConfigStore:
         strips = value.get("strips", {})
         ps4_devices = value.get("ps4_devices", {})
         mappings = value.get("mappings", {})
-        if not isinstance(strips, dict) or not isinstance(ps4_devices, dict) or not isinstance(mappings, dict):
+        scenes = value.get("scenes", {})
+        settings = value.get("settings", {})
+        if (
+            not isinstance(strips, dict)
+            or not isinstance(ps4_devices, dict)
+            or not isinstance(mappings, dict)
+            or not isinstance(scenes, dict)
+            or not isinstance(settings, dict)
+        ):
             raise ValueError("invalid config backup")
+        defaults = self._default()
+        defaults["settings"].update(settings)
         clean = {
-            "version": 2,
+            "version": 3,
             "strips": strips,
             "ps4_devices": ps4_devices,
             "mappings": mappings,
+            "scenes": scenes,
+            "settings": defaults["settings"],
         }
         with self._lock:
             self._data = clean
