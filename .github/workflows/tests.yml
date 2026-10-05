@@ -69,3 +69,40 @@ jobs:
       - name: Stop real container
         if: always()
         run: docker compose -f docker-compose.real.yml down -v
+
+  casaos-container-smoke:
+    runs-on: ubuntu-latest
+    env:
+      VOLTRA_API_TOKEN: ci-casaos-smoke-token
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate installer script
+        run: bash -n casaos/install.sh
+      - name: Validate CasaOS compose
+        run: docker compose -f docker-compose.casaos.yml config >/dev/null
+      - name: Prepare CasaOS data path
+        run: sudo mkdir -p /DATA/AppData/Voltra/data
+      - name: Build and start CasaOS local image
+        run: docker compose -f docker-compose.casaos.build.yml up -d --build
+      - name: Wait for Voltra
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8086/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker compose -f docker-compose.casaos.build.yml logs
+          exit 1
+      - name: Verify protected API
+        run: |
+          curl --fail --silent \
+            -H "Authorization: Bearer $VOLTRA_API_TOKEN" \
+            http://127.0.0.1:8086/api/status >/dev/null
+      - name: Verify strip TCP port
+        run: python -c "import socket; s=socket.create_connection(('127.0.0.1',10086),2); s.close()"
+      - name: Stop CasaOS test
+        if: always()
+        run: |
+          docker compose -f docker-compose.casaos.build.yml down -v || true
+          sudo rm -rf /DATA/AppData/Voltra
