@@ -32,6 +32,8 @@ VOLTRA_CORS_ORIGIN=*
 VOLTRA_POLL_INTERVAL=10
 VOLTRA_DIAGNOSTICS_INTERVAL=30
 VOLTRA_TELEMETRY_INTERVAL=60
+VOLTRA_TIMEZONE=Africa/Cairo
+VOLTRA_DISCOVERY_PORT=10087
 EOF
   chmod 600 "$ENV_FILE"
   echo "Created $ENV_FILE."
@@ -53,5 +55,6 @@ echo
 echo "Voltra is starting."
 echo "Dashboard: http://${HOST_IP:-CASAOS-IP}:8086/voltra"
 echo "Device TCP: ${HOST_IP:-CASAOS-IP}:10086"
+echo "Voltra-X Discovery: UDP ${HOST_IP:-CASAOS-IP}:10087"
 echo
 echo "Use the CasaOS LAN IP as server IP when provisioning MTTL-W01 strips."
