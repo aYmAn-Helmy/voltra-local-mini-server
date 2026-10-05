@@ -9,6 +9,7 @@ from . import __version__
 from .audit import AuditLog
 from .automation import AutomationEngine
 from .demo_device import run_demo_device
+from .discovery import DiscoveryResponder
 from .events import EventBus
 from .http_api import start_http
 from .store import ConfigStore
@@ -43,6 +44,7 @@ def main() -> None:
     response_timeout = env_float("VOLTRA_RESPONSE_TIMEOUT", 3.0)
     diagnostics_interval = env_float("VOLTRA_DIAGNOSTICS_INTERVAL", 30.0)
     telemetry_interval = env_float("VOLTRA_TELEMETRY_INTERVAL", 60.0)
+    discovery_port = env_int("VOLTRA_DISCOVERY_PORT", 10087)
     command_attempts = env_int("VOLTRA_COMMAND_ATTEMPTS", 2)
     confirm_delay = env_float("VOLTRA_COMMAND_CONFIRM_DELAY", 0.15)
     rate_limit = env_int("VOLTRA_RATE_LIMIT_PER_MINUTE", 60)
@@ -110,6 +112,15 @@ def main() -> None:
         event_bus=event_bus,
         rate_limit_per_minute=rate_limit,
     )
+    discovery = DiscoveryResponder(
+        port=discovery_port,
+        http_port=http_port,
+        tcp_port=tcp_port,
+        name=os.getenv("VOLTRA_SERVER_NAME", "Voltra Server"),
+    )
+    discovery.start()
+    print(f"[DISCOVERY] UDP 0.0.0.0:{discovery_port}")
+
     stop = threading.Event()
 
     def shutdown(*_):
@@ -118,6 +129,7 @@ def main() -> None:
         stop.set()
         print("[APP] shutting down")
         automation.stop()
+        discovery.stop()
         telemetry.stop()
         http.shutdown()
         http.server_close()
