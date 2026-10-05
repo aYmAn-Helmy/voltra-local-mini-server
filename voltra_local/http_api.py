@@ -31,12 +31,15 @@ _V_STRIP_ADOPT_RE = re.compile(r"^/voltra/api/strips/([^/]+)/adopt$")
 _V_STRIP_ENABLED_RE = re.compile(r"^/voltra/api/strips/([^/]+)/enabled$")
 _V_STRIP_IGNORE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/ignore$")
 _V_STRIP_REPLACE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/replace$")
+_V_STRIP_PREFS_RE = re.compile(r"^/voltra/api/strips/([^/]+)/preferences$")
 _V_PS4_RE = re.compile(r"^/voltra/api/ps4/([^/]+)$")
 _V_MAPPING_RE = re.compile(r"^/voltra/api/ps4/([^/]+)/power-mapping$")
 _V_POWER_RE = re.compile(r"^/voltra/api/ps4/([^/]+)/power$")
 _V_POWER_ACTION_RE = re.compile(r"^/voltra/api/ps4/([^/]+)/power/(on|off)$")
 _V_SCHEDULE_RE = re.compile(r"^/voltra/api/schedules/([^/]+)$")
 _V_RULE_RE = re.compile(r"^/voltra/api/rules/([^/]+)$")
+_V_SCENE_RE = re.compile(r"^/voltra/api/scenes/([^/]+)$")
+_V_SCENE_RUN_RE = re.compile(r"^/voltra/api/scenes/([^/]+)/run$")
 
 
 def _decoded(value: str) -> str:
@@ -88,6 +91,10 @@ class APIHandler(BaseHTTPRequestHandler):
                 return self._json(200, self.app.overview())
             if path == "/voltra/api/automation":
                 return self._json(200, self.app.automation.snapshot() if self.app.automation else {"schedules": {}, "rules": {}, "queue": []})
+            if path == "/voltra/api/scenes":
+                return self._json(200, {"scenes": self.app.store.scenes()})
+            if path == "/voltra/api/settings":
+                return self._json(200, self.app.store.settings())
             if path == "/voltra/api/energy":
                 if not self.app.telemetry:
                     return self._json(503, {"error": "telemetry disabled"})
@@ -97,9 +104,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 mac = self.app.store.normalize_mac(mac)
                 try:
                     hours = float((query.get("hours") or ["24"])[0])
+                    outlet_raw = str((query.get("outlet") or [""])[0]).strip()
+                    outlet = int(outlet_raw) if outlet_raw else None
                 except ValueError:
-                    return self._json(400, {"error": "hours must be numeric"})
-                return self._json(200, self.app.telemetry.summary(mac, hours))
+                    return self._json(400, {"error": "hours and outlet must be numeric"})
+                return self._json(200, self.app.telemetry.summary(mac, hours, outlet))
             if path == "/voltra/api/energy/history":
                 if not self.app.telemetry:
                     return self._json(503, {"error": "telemetry disabled"})
@@ -110,9 +119,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 try:
                     hours = float((query.get("hours") or ["24"])[0])
                     limit = int((query.get("limit") or ["96"])[0])
+                    outlet_raw = str((query.get("outlet") or [""])[0]).strip()
+                    outlet = int(outlet_raw) if outlet_raw else None
                 except ValueError:
-                    return self._json(400, {"error": "hours and limit must be numeric"})
-                return self._json(200, self.app.telemetry.history(mac, hours, limit))
+                    return self._json(400, {"error": "hours, limit and outlet must be numeric"})
+                return self._json(200, self.app.telemetry.history(mac, hours, limit, outlet))
             if path == "/voltra/api/audit":
                 if not self.app.audit:
                     return self._json(200, {"events": []})
@@ -171,6 +182,26 @@ class APIHandler(BaseHTTPRequestHandler):
                 if not self.app.automation:
                     return self._json(503, {"error": "automation disabled"})
                 return self._json(201, self.app.automation.create_schedule(self._read_json()))
+            if path == "/voltra/api/countdown":
+                if not self.app.automation:
+                    return self._json(503, {"error": "automation disabled"})
+                return self._json(201, self.app.automation.create_countdown(self._read_json()))
+            if path == "/voltra/api/scenes":
+                body = self._read_json()
+                scene_id = str(body.get("id") or "").strip()
+                if not scene_id:
+                    scene_id = re.sub(r"[^a-z0-9_-]+", "-", str(body.get("name") or "scene").strip().lower()).strip("-")[:60]
+                    if not scene_id:
+                        scene_id = f"scene-{int(time.time())}"
+                return self._json(
+                    201,
+                    self.app.store.upsert_scene(
+                        scene_id,
+                        str(body.get("name") or scene_id),
+                        body.get("actions") or [],
+                        int(body.get("sort_order") or 0),
+                    ),
+                )
             if path == "/voltra/api/rules":
                 if not self.app.automation:
                     return self._json(503, {"error": "automation disabled"})
@@ -193,6 +224,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 if not isinstance(prune, bool):
                     return self._json(400, {"error": "prune must be boolean"})
                 return self._json(200, {"devices": self.app.store.sync_ps4(devices, prune=prune)})
+            match = _V_SCENE_RUN_RE.match(path)
+            if match:
+                return self._json(200, self.app.run_scene(_decoded(match.group(1))))
             if path == "/voltra/api/provision":
                 body = self._read_json()
                 result = provision_device(
@@ -257,6 +291,23 @@ class APIHandler(BaseHTTPRequestHandler):
             self.app.audit_request("PUT", path, self.client_address[0])
             body = self._read_json()
 
+            match = _V_STRIP_PREFS_RE.match(path)
+            if match:
+                mac = _decoded(match.group(1))
+                return self._json(
+                    200,
+                    {
+                        "mac": self.app.store.normalize_mac(mac),
+                        **self.app.store.set_strip_preferences(
+                            mac,
+                            room=body.get("room") if "room" in body else None,
+                            favorite=body.get("favorite") if "favorite" in body else None,
+                            sort_order=body.get("sort_order") if "sort_order" in body else None,
+                        ),
+                    },
+                )
+            if path == "/voltra/api/settings":
+                return self._json(200, self.app.store.update_settings(body))
             match = _V_STRIP_RE.match(path)
             if match:
                 mac = _decoded(match.group(1))
@@ -301,6 +352,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 if not self.app.automation:
                     return self._json(503, {"error": "automation disabled"})
                 return self._json(200, {"ok": True, "removed": self.app.automation.delete_rule(_decoded(match.group(1)))})
+            match = _V_SCENE_RE.match(path)
+            if match:
+                return self._json(200, {"ok": True, "removed": self.app.store.delete_scene(_decoded(match.group(1)))})
             if path == "/voltra/api/queue":
                 if not self.app.automation:
                     return self._json(503, {"error": "automation disabled"})
@@ -498,10 +552,21 @@ class VoltraHTTPServer(ThreadingHTTPServer):
                 "mapped_devices": mapped_devices,
                 "mapped_count": len(mapped_devices),
                 "total_power_w": round(sum(float(x.get("power_w") or 0) for x in outlets), 2),
+                "room": str(meta.get("room") or ""),
+                "favorite": bool(meta.get("favorite", False)),
+                "sort_order": int(meta.get("sort_order") or 0),
                 "replaced_by": meta.get("replaced_by"),
                 "replaced_from": meta.get("replaced_from"),
             }
             result.append(item)
+        result.sort(
+            key=lambda item: (
+                int(item.get("sort_order") or 0),
+                str(item.get("room") or "").lower(),
+                str(item.get("name") or "").lower(),
+                str(item.get("mac") or ""),
+            )
+        )
         return result
 
     def overview(self) -> dict:
@@ -515,6 +580,8 @@ class VoltraHTTPServer(ThreadingHTTPServer):
             "strips": strips,
             "ps4_devices": self.store.ps4_devices(),
             "mappings": self.store.mappings(),
+            "scenes": self.store.scenes(),
+            "settings": self.store.settings(),
             "summary": {
                 "active_strips": len(active),
                 "online_strips": len(online),
@@ -524,6 +591,28 @@ class VoltraHTTPServer(ThreadingHTTPServer):
             },
         }
 
+
+    def run_scene(self, scene_id: str) -> dict:
+        scene = next((x for x in self.store.scenes() if x.get("id") == scene_id), None)
+        if not scene:
+            raise KeyError(f"unknown scene: {scene_id}")
+        results = []
+        for action in scene.get("actions") or []:
+            mac = str(action.get("mac") or "")
+            outlet = int(action.get("outlet") or 0)
+            on = bool(action.get("on"))
+            try:
+                self.store.require_strip_controllable(mac)
+                snapshot = self.mttl.get(mac).set_outlet(outlet, on)
+                results.append({"mac": mac, "outlet": outlet, "on": on, "ok": True, "device": snapshot})
+            except Exception as exc:
+                results.append({"mac": mac, "outlet": outlet, "on": on, "ok": False, "error": str(exc)})
+        ok = all(item.get("ok") for item in results) if results else False
+        if self.audit:
+            self.audit.append("scene", "scene_run", scene_id=scene_id, ok=ok, results=results)
+        if self.event_bus:
+            self.event_bus.publish("scene_run", scene_id=scene_id, ok=ok)
+        return {"ok": ok, "scene": scene, "results": results}
 
     def ps4_power_status(self, device_id: str) -> dict:
         mapping = self.store.mapping(device_id)
