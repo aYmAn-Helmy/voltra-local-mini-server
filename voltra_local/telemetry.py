@@ -72,7 +72,7 @@ class TelemetryStore:
             for item in lines:
                 handle.write(json.dumps(item, ensure_ascii=False, separators=(",", ":")) + "\n")
 
-    def history(self, mac: str, hours: float = 24.0, limit: int = 96) -> dict:
+    def history(self, mac: str, hours: float = 24.0, limit: int = 96, outlet: int | None = None) -> dict:
         hours = max(0.25, min(float(hours), 24.0 * 365))
         limit = max(12, min(int(limit), 500))
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -101,25 +101,40 @@ class TelemetryStore:
                 sampled.append(rows[-1])
             rows = sampled[-limit:]
 
-        points = [
-            {
-                "at": row.get("at"),
-                "power_w": round(float(row.get("total_power_w") or 0), 3),
-                "energy_kwh": round(float(row.get("energy_kwh") or 0), 6),
-                "voltage_v": row.get("voltage_v"),
-                "wifi_rssi_dbm": row.get("wifi_rssi_dbm"),
-            }
-            for row in rows
-        ]
+        if outlet is not None and outlet not in (1, 2, 3, 4):
+            raise ValueError("outlet must be 1..4")
+
+        def point_value(row: dict) -> tuple[float, float]:
+            if outlet is None:
+                return float(row.get("total_power_w") or 0), float(row.get("energy_kwh") or 0)
+            channel = next(
+                (x for x in (row.get("outlets") or []) if int(x.get("channel") or 0) == outlet),
+                {},
+            )
+            return float(channel.get("power_w") or 0), float(channel.get("energy_kwh") or 0)
+
+        points = []
+        for row in rows:
+            power_w, energy_kwh = point_value(row)
+            points.append(
+                {
+                    "at": row.get("at"),
+                    "power_w": round(power_w, 3),
+                    "energy_kwh": round(energy_kwh, 6),
+                    "voltage_v": row.get("voltage_v"),
+                    "wifi_rssi_dbm": row.get("wifi_rssi_dbm"),
+                }
+            )
 
         return {
             "mac": mac.upper(),
             "hours": hours,
+            "outlet": outlet,
             "samples": len(points),
             "points": points,
         }
 
-    def summary(self, mac: str, hours: float = 24.0) -> dict:
+    def summary(self, mac: str, hours: float = 24.0, outlet: int | None = None) -> dict:
         hours = max(0.25, min(float(hours), 24.0 * 365))
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         rows = []
@@ -137,13 +152,27 @@ class TelemetryStore:
                     continue
                 if str(item.get("mac", "")).upper() == mac.upper() and at >= cutoff:
                     rows.append(item)
-        powers = [float(x.get("total_power_w") or 0) for x in rows]
+        if outlet is not None and outlet not in (1, 2, 3, 4):
+            raise ValueError("outlet must be 1..4")
+
+        def row_values(row: dict) -> tuple[float, float]:
+            if outlet is None:
+                return float(row.get("total_power_w") or 0), float(row.get("energy_kwh") or 0)
+            channel = next(
+                (x for x in (row.get("outlets") or []) if int(x.get("channel") or 0) == outlet),
+                {},
+            )
+            return float(channel.get("power_w") or 0), float(channel.get("energy_kwh") or 0)
+
+        values = [row_values(x) for x in rows]
+        powers = [x[0] for x in values]
         energy_delta = 0.0
-        if len(rows) >= 2:
-            energy_delta = max(0.0, float(rows[-1].get("energy_kwh") or 0) - float(rows[0].get("energy_kwh") or 0))
+        if len(values) >= 2:
+            energy_delta = max(0.0, values[-1][1] - values[0][1])
         return {
             "mac": mac.upper(),
             "hours": hours,
+            "outlet": outlet,
             "samples": len(rows),
             "energy_kwh": round(energy_delta, 6),
             "average_power_w": round(sum(powers) / len(powers), 3) if powers else 0.0,
