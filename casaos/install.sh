@@ -17,6 +17,15 @@ fi
 
 mkdir -p "$DATA_DIR"
 
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "Updating Voltra source from origin/main..."
+  git fetch origin main
+  git pull --ff-only origin main
+fi
+
+SOURCE_VERSION="$(python3 -c 'import pathlib,re; p=pathlib.Path("voltra_local/__init__.py").read_text(); m=re.search(r"__version__\\s*=\\s*[\"'\"]([^\"'\"]+)", p); print(m.group(1) if m else "unknown")')"
+echo "Source version: $SOURCE_VERSION"
+
 if [ ! -f "$ENV_FILE" ]; then
   cat > "$ENV_FILE" <<EOF
 VOLTRA_CORS_ORIGIN=*
