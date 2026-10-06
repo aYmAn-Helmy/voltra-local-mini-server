@@ -26,7 +26,10 @@ class ProfessionalFrontendV020Tests(unittest.TestCase):
             self.assertTrue(path.is_file(), path)
 
     def test_reference_home_surface_is_in_react_ui(self):
-        source = (FRONTEND / "src" / "views.tsx").read_text(encoding="utf-8")
+        source = "\n".join(
+            (FRONTEND / "src" / name).read_text(encoding="utf-8")
+            for name in ("views.tsx", "ui.tsx")
+        )
         for marker in (
             "Total power right now",
             "Consumption",
