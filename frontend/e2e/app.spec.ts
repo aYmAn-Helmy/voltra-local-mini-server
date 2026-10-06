@@ -22,7 +22,7 @@ test("dashboard is responsive and has no horizontal overflow", async ({ page }, 
 test("main navigation surfaces remain reachable", async ({ page }) => {
   await page.goto("/voltra/");
   await page.getByRole("button", { name: /Schedules/i }).click();
-  await expect(page.getByRole("heading", { name: "Automation" })).toBeVisible();
+  await expect(page.locator("h1", { hasText: "Automation" })).toBeVisible();
   await page.getByRole("button", { name: /Consumption/i }).click();
-  await expect(page.getByRole("heading", { name: "Consumption" })).toBeVisible();
+  await expect(page.locator("h1", { hasText: "Consumption" })).toBeVisible();
 });
