@@ -1,3 +1,13 @@
+FROM node:22-alpine AS frontend-build
+
+WORKDIR /frontend
+COPY frontend/package.json frontend/tsconfig.json frontend/vite.config.ts frontend/index.html ./
+COPY frontend/src ./src
+
+RUN npm install --no-audit --no-fund \
+    && npm run build
+
+
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -10,6 +20,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 COPY voltra_local /app/voltra_local
+COPY --from=frontend-build /frontend/dist /app/voltra_local/web
 
 RUN mkdir -p /app/data
 

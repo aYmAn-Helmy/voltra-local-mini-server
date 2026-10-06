@@ -16,10 +16,23 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m unittest discover -s tests -v
-      - name: Extract dashboard JavaScript
-        run: python -c "from voltra_local.dashboard import DASHBOARD; open('/tmp/voltra-dashboard.js','w',encoding='utf-8').write(DASHBOARD.split('<script>',1)[1].split('</script>',1)[0])"
-      - name: Check dashboard JavaScript syntax
-        run: node --check /tmp/voltra-dashboard.js
+      - name: Check legacy dashboard JavaScript syntax
+        run: python -c "from voltra_local.dashboard import DASHBOARD; open('/tmp/voltra-legacy.js','w',encoding='utf-8').write(DASHBOARD.split('<script>',1)[1].split('</script>',1)[0])"
+      - run: node --check /tmp/voltra-legacy.js
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+      - name: Type-check and build React UI
+        working-directory: frontend
+        run: npm run build
 
   demo-container:
     runs-on: ubuntu-latest
@@ -29,7 +42,7 @@ jobs:
         run: docker compose -f docker-compose.demo.yml up -d --build
       - name: Wait for health endpoint
         run: |
-          for i in {1..30}; do
+          for i in {1..40}; do
             if curl --fail --silent http://127.0.0.1:8086/health >/dev/null; then
               exit 0
             fi
@@ -37,11 +50,51 @@ jobs:
           done
           docker compose -f docker-compose.demo.yml logs
           exit 1
-      - name: Smoke test dashboard
-        run: curl --fail --silent http://127.0.0.1:8086/voltra >/dev/null
+      - name: Smoke test React dashboard
+        run: |
+          curl --fail --silent http://127.0.0.1:8086/voltra/ | grep -q '<div id="root"></div>'
+          curl --fail --silent http://127.0.0.1:8086/voltra/legacy | grep -q 'Voltra'
       - name: Show container status
         run: docker compose -f docker-compose.demo.yml ps
       - name: Stop demo container
+        if: always()
+        run: docker compose -f docker-compose.demo.yml down -v
+
+  ui-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Start demo server
+        run: docker compose -f docker-compose.demo.yml up -d --build
+      - name: Wait for dashboard
+        run: |
+          for i in {1..40}; do
+            if curl --fail --silent http://127.0.0.1:8086/voltra/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker compose -f docker-compose.demo.yml logs
+          exit 1
+      - name: Run responsive UI tests
+        working-directory: frontend
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: voltra-ui-test-results
+          path: frontend/test-results
+          if-no-files-found: ignore
+      - name: Stop demo server
         if: always()
         run: docker compose -f docker-compose.demo.yml down -v
 
@@ -53,7 +106,7 @@ jobs:
         run: docker compose -f docker-compose.real.yml up -d --build
       - name: Wait for health endpoint
         run: |
-          for i in {1..30}; do
+          for i in {1..40}; do
             if curl --fail --silent http://127.0.0.1:8086/health >/dev/null; then
               exit 0
             fi
@@ -63,6 +116,8 @@ jobs:
           exit 1
       - name: Verify API without token
         run: curl --fail --silent http://127.0.0.1:8086/api/status >/dev/null
+      - name: Verify React dashboard
+        run: curl --fail --silent http://127.0.0.1:8086/voltra/ | grep -q '<div id="root"></div>'
       - name: Verify device TCP port is published
         run: python -c "import socket; s=socket.create_connection(('127.0.0.1',10086),2); s.close()"
       - name: Stop real container
@@ -83,7 +138,7 @@ jobs:
         run: docker compose -f docker-compose.casaos.build.yml up -d --build
       - name: Wait for Voltra
         run: |
-          for i in {1..30}; do
+          for i in {1..40}; do
             if curl --fail --silent http://127.0.0.1:8086/health >/dev/null; then
               exit 0
             fi
@@ -93,6 +148,8 @@ jobs:
           exit 1
       - name: Verify API without token
         run: curl --fail --silent http://127.0.0.1:8086/api/status >/dev/null
+      - name: Verify React dashboard
+        run: curl --fail --silent http://127.0.0.1:8086/voltra/ | grep -q '<div id="root"></div>'
       - name: Verify strip TCP port
         run: python -c "import socket; s=socket.create_connection(('127.0.0.1',10086),2); s.close()"
       - name: Stop CasaOS test

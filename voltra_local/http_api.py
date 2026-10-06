@@ -4,7 +4,9 @@ from collections import defaultdict, deque
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import mimetypes
 import os
+from pathlib import Path
 import queue
 import re
 import threading
@@ -41,6 +43,9 @@ _V_RULE_RE = re.compile(r"^/voltra/api/rules/([^/]+)$")
 _V_SCENE_RE = re.compile(r"^/voltra/api/scenes/([^/]+)$")
 _V_SCENE_RUN_RE = re.compile(r"^/voltra/api/scenes/([^/]+)/run$")
 
+_DEFAULT_WEB_ROOT = Path(__file__).with_name("web")
+WEB_ROOT = Path(os.getenv("VOLTRA_WEB_ROOT") or _DEFAULT_WEB_ROOT)
+
 
 def _decoded(value: str) -> str:
     return unquote(value)
@@ -67,12 +72,14 @@ class APIHandler(BaseHTTPRequestHandler):
             query = parse_qs(split.query)
             if path == "/":
                 self.send_response(302)
-                self.send_header("Location", "/voltra")
+                self.send_header("Location", "/voltra/")
                 self._common_headers()
                 self.end_headers()
                 return
-            if path in ("/voltra", "/voltra/"):
+            if path in ("/voltra/legacy", "/voltra/legacy/"):
                 return self._send_text(200, DASHBOARD, "text/html; charset=utf-8")
+            if path.startswith("/voltra") and not path.startswith("/voltra/api"):
+                return self._serve_frontend(path)
             if path == "/health":
                 return self._json(200, {"ok": True, "version": __version__})
 
@@ -407,6 +414,46 @@ class APIHandler(BaseHTTPRequestHandler):
             return
         finally:
             self.app.event_bus.unsubscribe(target)
+
+    def _serve_frontend(self, request_path: str):
+        root = WEB_ROOT.resolve()
+        index = root / "index.html"
+
+        if not index.is_file():
+            if request_path in ("/voltra", "/voltra/") or "." not in Path(request_path).name:
+                return self._send_text(200, DASHBOARD, "text/html; charset=utf-8")
+            return self._json(404, {"error": "frontend asset not found"})
+
+        relative = request_path[len("/voltra"):].lstrip("/") or "index.html"
+        candidate = (root / relative).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            return self._json(404, {"error": "not found"})
+
+        if candidate.is_file():
+            return self._send_file(candidate, immutable="/assets/" in request_path)
+
+        if "." not in Path(relative).name:
+            return self._send_file(index, immutable=False)
+
+        return self._json(404, {"error": "frontend asset not found"})
+
+    def _send_file(self, path: Path, *, immutable: bool = False):
+        payload = path.read_bytes()
+        content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+        if content_type.startswith("text/") or content_type in {"application/javascript", "application/json"}:
+            content_type += "; charset=utf-8"
+
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", self.app.cors_origin)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "SAMEORIGIN")
+        self.send_header("Cache-Control", "public, max-age=31536000, immutable" if immutable else "no-store")
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))

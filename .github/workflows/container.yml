@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "Dockerfile"
+      - "frontend/**"
       - "voltra_local/**"
       - ".github/workflows/container.yml"
   workflow_dispatch:
@@ -34,8 +35,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/ayman-helmy/voltra-local-mini-server:latest
-            ghcr.io/ayman-helmy/voltra-local-mini-server:0.14.0
+            ghcr.io/ayman-helmy/voltra-local-mini-server:0.20.0
           labels: |
             org.opencontainers.image.source=https://github.com/aYmAn-Helmy/voltra-local-mini-server
             org.opencontainers.image.title=Voltra Local Mini Server
-            org.opencontainers.image.version=0.14.0
+            org.opencontainers.image.version=0.20.0

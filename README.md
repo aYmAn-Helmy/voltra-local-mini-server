@@ -4,7 +4,7 @@ Local-first server for LG U+ / TONLY MTTL-W01 smart power strips.
 
 ## Current release
 
-**v0.19.0**
+**v0.20.0**
 
 Key capabilities:
 
@@ -21,10 +21,51 @@ Key capabilities:
 - Audit log and write rate limiting
 - Separate TCP and HTTP bind addresses
 - Tokenless standalone LAN dashboard/API
-- Desktop web dashboard with fixed navigation sidebar, KPI cards, smart-strip grid and quick actions
-- Light and dark web themes with the selected theme persisted in the browser
+- React + TypeScript + Vite professional UI served directly from `/voltra/`
+- Mobile-first smart-home dashboard with total-power hero, quick actions, search and 2x2 outlet tiles
+- Dedicated Consumption, Automation, Rooms/Mapping, Add/Provision and Settings views
+- Optimistic outlet controls with verified backend reconciliation and custom confirmation sheets
+- Responsive E2E UI testing on mobile, tablet and desktop viewports
+- Legacy v0.19 dashboard preserved at `/voltra/legacy` as a safety fallback
 - Server-side Rooms, Favorites, ordering, Scenes and energy/alert settings
 - Voltra-X LAN discovery on UDP 10087
+
+## Professional web UI
+
+The v0.20 dashboard is a separate React/TypeScript frontend. Docker builds it in a
+Node stage and copies the static Vite output into the final Python image, so deployment
+still uses one Voltra container.
+
+Main dashboard:
+
+```text
+http://SERVER-IP:8086/voltra/
+```
+
+Legacy fallback:
+
+```text
+http://SERVER-IP:8086/voltra/legacy
+```
+
+For local frontend development:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Production build:
+
+```bash
+cd frontend
+npm install
+npm run build
+```
+
+The Python server automatically serves `voltra_local/web` when a production frontend
+build is present and falls back to the legacy dashboard when it is not.
 
 ## Quick demo with Docker
 
