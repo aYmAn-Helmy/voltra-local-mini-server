@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'app_controller.dart';
+import 'security_controller.dart';
 import 'voltra_api.dart';
 
 void main() {
@@ -17,21 +18,45 @@ class VoltraMobileApp extends StatefulWidget {
   State<VoltraMobileApp> createState() => _VoltraMobileAppState();
 }
 
-class _VoltraMobileAppState extends State<VoltraMobileApp> {
+class _VoltraMobileAppState extends State<VoltraMobileApp>
+    with WidgetsBindingObserver {
   final controller = AppController();
+  final security = SecurityController();
   bool booting = true;
 
   @override
   void initState() {
     super.initState();
-    controller.initialize().whenComplete(() {
+    WidgetsBinding.instance.addObserver(this);
+    Future.wait([
+      controller.initialize(),
+      security.initialize(),
+    ]).whenComplete(() {
       if (mounted) setState(() => booting = false);
     });
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        security.markBackgrounded();
+        break;
+      case AppLifecycleState.resumed:
+        security.handleResumed();
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        break;
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     controller.dispose();
+    security.dispose();
     super.dispose();
   }
 
@@ -101,12 +126,23 @@ class _VoltraMobileAppState extends State<VoltraMobileApp> {
       home: booting
           ? const _BootScreen()
           : AnimatedBuilder(
-              animation: controller,
+              animation: security,
               builder: (context, _) {
-                if (!controller.connected) {
-                  return SetupScreen(controller: controller);
+                if (security.enabled && !security.unlocked) {
+                  return LockScreen(security: security);
                 }
-                return MainShell(controller: controller);
+                return AnimatedBuilder(
+                  animation: controller,
+                  builder: (context, _) {
+                    if (!controller.connected) {
+                      return SetupScreen(controller: controller);
+                    }
+                    return MainShell(
+                      controller: controller,
+                      security: security,
+                    );
+                  },
+                );
               },
             ),
     );
@@ -404,7 +440,12 @@ class _ServerCard extends StatelessWidget {
 
 class MainShell extends StatefulWidget {
   final AppController controller;
-  const MainShell({super.key, required this.controller});
+  final SecurityController security;
+  const MainShell({
+    super.key,
+    required this.controller,
+    required this.security,
+  });
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -426,7 +467,10 @@ class _MainShellState extends State<MainShell> {
       HomePage(controller: widget.controller),
       EnergyPage(controller: widget.controller),
       AutomationPage(controller: widget.controller),
-      SettingsPage(controller: widget.controller),
+      SettingsPage(
+        controller: widget.controller,
+        security: widget.security,
+      ),
     ];
 
     return Scaffold(
@@ -1975,7 +2019,12 @@ class _AddStripPageState extends State<AddStripPage> {
 
 class SettingsPage extends StatelessWidget {
   final AppController controller;
-  const SettingsPage({super.key, required this.controller});
+  final SecurityController security;
+  const SettingsPage({
+    super.key,
+    required this.controller,
+    required this.security,
+  });
 
   @override
   Widget build(BuildContext context) {
