@@ -2017,6 +2017,1545 @@ class _AddStripPageState extends State<AddStripPage> {
   }
 }
 
+
+class LockScreen extends StatefulWidget {
+  final SecurityController security;
+  const LockScreen({super.key, required this.security});
+
+  @override
+  State<LockScreen> createState() => _LockScreenState();
+}
+
+class _LockScreenState extends State<LockScreen> {
+  final pin = TextEditingController();
+  bool busy = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.security.biometricEnabled) {
+        _useBiometric();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    pin.dispose();
+    super.dispose();
+  }
+
+  Future<void> _unlockWithPin() async {
+    if (busy) return;
+    final value = pin.text.trim();
+    if (!RegExp(r'^\d{4,6}
+  final AppController controller;
+  final SecurityController security;
+  const SettingsPage({
+    super.key,
+    required this.controller,
+    required this.security,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final online = controller.summary['online_strips'] ?? 0;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      children: [
+        const _SectionTitle(
+          eyebrow: 'LOCAL SERVER',
+          title: 'Voltra',
+        ),
+        const SizedBox(height: 10),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              children: [
+                const _LogoMark(size: 58),
+                const SizedBox(height: 12),
+                const Text(
+                  'Voltra Mobile',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'App v${controller.appVersion} (${controller.appBuild}) · Server v${controller.version}',
+                  style: const TextStyle(
+                    color: Color(0xFF828C9F),
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                _SettingsLine(
+                  icon: Icons.dns_rounded,
+                  label: 'Server',
+                  value: controller.baseUrl,
+                ),
+                _SettingsLine(
+                  icon: Icons.wifi_rounded,
+                  label: 'Online strips',
+                  value: '$online',
+                ),
+                _SettingsLine(
+                  icon: Icons.shield_outlined,
+                  label: 'Connection',
+                  value: 'Local LAN',
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.refresh_rounded),
+                title: const Text('Refresh all data'),
+                onTap: controller.refresh,
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.language_rounded),
+                title: const Text('Open web dashboard'),
+                subtitle: Text('${controller.baseUrl}/voltra/'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.link_off_rounded,
+                  color: Color(0xFFFF7C88),
+                ),
+                title: const Text(
+                  'Change Voltra server',
+                  style: TextStyle(color: Color(0xFFFFA4AC)),
+                ),
+                onTap: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Disconnect server?'),
+                      content: const Text(
+                        'You can discover or enter another Voltra server after disconnecting.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.pop(dialogContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () =>
+                              Navigator.pop(dialogContext, true),
+                          child: const Text('Disconnect'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok == true) await controller.disconnect();
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        const _InfoRow(
+          icon: Icons.lock_outline_rounded,
+          title: 'No cloud account',
+          text:
+              'This APK talks directly to your Voltra server and does not require an external login.',
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String eyebrow;
+  final String title;
+  final Widget? trailing;
+  const _SectionTitle({
+    required this.eyebrow,
+    required this.title,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                eyebrow,
+                style: const TextStyle(
+                  color: Color(0xFF39E27D),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (trailing != null) trailing!,
+      ],
+    );
+  }
+}
+
+class _EmptyCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String text;
+  const _EmptyCard({
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E1624),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: const Color(0xFF273249)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFF123128),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Icon(icon, color: const Color(0xFF39E27D)),
+          ),
+          const SizedBox(height: 11),
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF7B869B),
+              fontSize: 10,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final bool accent;
+  const _MetricCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.accent = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color:
+            accent ? const Color(0xFF11281F) : const Color(0xFF101827),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              accent ? const Color(0xFF276B4A) : const Color(0xFF222D42),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFF39E27D), size: 19),
+          const Spacer(),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF7F899E),
+              fontSize: 9,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _ActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF123128),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, color: const Color(0xFF39E27D)),
+              ),
+              const SizedBox(height: 13),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: Color(0xFF7B859A),
+                  fontSize: 9,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String text;
+  final bool active;
+  const _StatusPill({required this.text, required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color:
+            active ? const Color(0xFF112C24) : const Color(0xFF171F2C),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color:
+              active ? const Color(0xFF286248) : const Color(0xFF343E51),
+        ),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color:
+              active ? const Color(0xFF69E5A0) : const Color(0xFF909AAD),
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          letterSpacing: .8,
+        ),
+      ),
+    );
+  }
+}
+
+class _PulseDot extends StatelessWidget {
+  final bool active;
+  const _PulseDot({this.active = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 7,
+      height: 7,
+      decoration: BoxDecoration(
+        color: active
+            ? const Color(0xFF39E27D)
+            : const Color(0xFF6D778D),
+        shape: BoxShape.circle,
+        boxShadow: active
+            ? const [
+                BoxShadow(
+                  color: Color(0x8839E27D),
+                  blurRadius: 9,
+                ),
+              ]
+            : null,
+      ),
+    );
+  }
+}
+
+class _MiniMetric extends StatelessWidget {
+  final String value;
+  final String label;
+  const _MiniMetric({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: value,
+            style: const TextStyle(
+              color: Color(0xFFC6CBD6),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          TextSpan(text: ' $label'),
+        ],
+      ),
+      style: const TextStyle(
+        color: Color(0xFF8D96AA),
+        fontSize: 10,
+      ),
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  final int value;
+  const _CountBadge({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 31),
+      height: 31,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFF101827),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFF253047)),
+      ),
+      child: Text(
+        '$value',
+        style: const TextStyle(
+          color: Color(0xFFABB3C2),
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String text;
+  const _InfoRow({
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFF39E27D), size: 19),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: Color(0xFF7C879B),
+                    fontSize: 10,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsLine extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _SettingsLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF7F8A9E)),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF8A94A7),
+              fontSize: 11,
+            ),
+          ),
+          const Spacer(),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+List<(String, String)> _targets(AppController controller) {
+  final result = <(String, String)>[];
+  for (final strip in controller.activeStrips) {
+    if (strip['online'] != true ||
+        strip['enabled'] == false ||
+        strip['state'] != 'active') {
+      continue;
+    }
+    final mac = strip['mac']?.toString() ?? '';
+    final name = strip['name']?.toString() ?? mac;
+    for (var outlet = 1; outlet <= 4; outlet++) {
+      result.add(('$mac:$outlet', '$name · Outlet $outlet'));
+    }
+  }
+  return result;
+}
+
+(String, int) _parseTarget(String value) {
+  final index = value.lastIndexOf(':');
+  if (index < 1) throw const VoltraException('Invalid outlet target.');
+  return (
+    value.substring(0, index),
+    int.parse(value.substring(index + 1)),
+  );
+}
+
+double _num(dynamic value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+void _snack(
+  BuildContext context,
+  String message, {
+  bool error = false,
+}) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor:
+          error ? const Color(0xFF4A1F29) : const Color(0xFF153425),
+    ),
+  );
+}
+).hasMatch(value)) {
+      setState(() => error = 'Enter your 4 to 6 digit PIN.');
+      return;
+    }
+
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    final ok = await widget.security.verifyPin(value);
+    if (!mounted) return;
+    setState(() {
+      busy = false;
+      if (!ok) error = 'Incorrect PIN. Try again.';
+    });
+    if (!ok) {
+      pin
+        ..clear()
+        ..selection = const TextSelection.collapsed(offset: 0);
+    }
+  }
+
+  Future<void> _useBiometric() async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    final ok = await widget.security.authenticateBiometric();
+    if (!mounted) return;
+    setState(() {
+      busy = false;
+      if (!ok) error = 'Biometric unlock was not completed.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 32),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 430),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const _LogoMark(size: 72),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Voltra is locked',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Unlock before controlling outlets, schedules, or server settings.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF8993A7),
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: pin,
+                    enabled: !busy,
+                    autofocus: !widget.security.biometricEnabled,
+                    obscureText: true,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 8,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'PIN',
+                      hintText: '••••',
+                      counterText: '',
+                    ),
+                    onSubmitted: (_) => _unlockWithPin(),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Color(0xFFFF8A95)),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  FilledButton.icon(
+                    onPressed: busy ? null : _unlockWithPin,
+                    icon: busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.lock_open_rounded),
+                    label: const Text('Unlock Voltra'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                  ),
+                  if (widget.security.biometricEnabled) ...[
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : _useBiometric,
+                      icon: const Icon(Icons.fingerprint_rounded),
+                      label: const Text('Use biometrics'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  const _InfoRow(
+                    icon: Icons.shield_outlined,
+                    title: 'Local protection',
+                    text:
+                        'Your PIN stays on this device and is stored as a salted hash.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<String?> _showSetPinDialog(BuildContext context) async {
+  final first = TextEditingController();
+  final confirm = TextEditingController();
+  String? error;
+
+  final result = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setLocal) => AlertDialog(
+        title: const Text('Create Voltra PIN'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Choose a 4 to 6 digit PIN. You can also enable biometrics after the PIN is created.',
+              style: TextStyle(fontSize: 12, height: 1.45),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: first,
+              autofocus: true,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: const InputDecoration(
+                labelText: 'New PIN',
+                counterText: '',
+              ),
+            ),
+            const SizedBox(height: 9),
+            TextField(
+              controller: confirm,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: const InputDecoration(
+                labelText: 'Confirm PIN',
+                counterText: '',
+              ),
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                error!,
+                style: const TextStyle(
+                  color: Color(0xFFFF8A95),
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = first.text.trim();
+              if (!RegExp(r'^\d{4,6}
+  final AppController controller;
+  final SecurityController security;
+  const SettingsPage({
+    super.key,
+    required this.controller,
+    required this.security,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final online = controller.summary['online_strips'] ?? 0;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      children: [
+        const _SectionTitle(
+          eyebrow: 'LOCAL SERVER',
+          title: 'Voltra',
+        ),
+        const SizedBox(height: 10),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              children: [
+                const _LogoMark(size: 58),
+                const SizedBox(height: 12),
+                const Text(
+                  'Voltra Mobile',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'App v${controller.appVersion} (${controller.appBuild}) · Server v${controller.version}',
+                  style: const TextStyle(
+                    color: Color(0xFF828C9F),
+                    fontSize: 11,
+                  ),
+                ),
+                const SizedBox(height: 15),
+                _SettingsLine(
+                  icon: Icons.dns_rounded,
+                  label: 'Server',
+                  value: controller.baseUrl,
+                ),
+                _SettingsLine(
+                  icon: Icons.wifi_rounded,
+                  label: 'Online strips',
+                  value: '$online',
+                ),
+                _SettingsLine(
+                  icon: Icons.shield_outlined,
+                  label: 'Connection',
+                  value: 'Local LAN',
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.refresh_rounded),
+                title: const Text('Refresh all data'),
+                onTap: controller.refresh,
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.language_rounded),
+                title: const Text('Open web dashboard'),
+                subtitle: Text('${controller.baseUrl}/voltra/'),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(
+                  Icons.link_off_rounded,
+                  color: Color(0xFFFF7C88),
+                ),
+                title: const Text(
+                  'Change Voltra server',
+                  style: TextStyle(color: Color(0xFFFFA4AC)),
+                ),
+                onTap: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Disconnect server?'),
+                      content: const Text(
+                        'You can discover or enter another Voltra server after disconnecting.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () =>
+                              Navigator.pop(dialogContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                        FilledButton(
+                          onPressed: () =>
+                              Navigator.pop(dialogContext, true),
+                          child: const Text('Disconnect'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (ok == true) await controller.disconnect();
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        const _InfoRow(
+          icon: Icons.lock_outline_rounded,
+          title: 'No cloud account',
+          text:
+              'This APK talks directly to your Voltra server and does not require an external login.',
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String eyebrow;
+  final String title;
+  final Widget? trailing;
+  const _SectionTitle({
+    required this.eyebrow,
+    required this.title,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                eyebrow,
+                style: const TextStyle(
+                  color: Color(0xFF39E27D),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (trailing != null) trailing!,
+      ],
+    );
+  }
+}
+
+class _EmptyCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String text;
+  const _EmptyCard({
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0E1624),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: const Color(0xFF273249)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFF123128),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Icon(icon, color: const Color(0xFF39E27D)),
+          ),
+          const SizedBox(height: 11),
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFF7B869B),
+              fontSize: 10,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final bool accent;
+  const _MetricCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.accent = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color:
+            accent ? const Color(0xFF11281F) : const Color(0xFF101827),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              accent ? const Color(0xFF276B4A) : const Color(0xFF222D42),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFF39E27D), size: 19),
+          const Spacer(),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF7F899E),
+              fontSize: 9,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _ActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(22),
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF123128),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, color: const Color(0xFF39E27D)),
+              ),
+              const SizedBox(height: 13),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: Color(0xFF7B859A),
+                  fontSize: 9,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String text;
+  final bool active;
+  const _StatusPill({required this.text, required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color:
+            active ? const Color(0xFF112C24) : const Color(0xFF171F2C),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color:
+              active ? const Color(0xFF286248) : const Color(0xFF343E51),
+        ),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color:
+              active ? const Color(0xFF69E5A0) : const Color(0xFF909AAD),
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          letterSpacing: .8,
+        ),
+      ),
+    );
+  }
+}
+
+class _PulseDot extends StatelessWidget {
+  final bool active;
+  const _PulseDot({this.active = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 7,
+      height: 7,
+      decoration: BoxDecoration(
+        color: active
+            ? const Color(0xFF39E27D)
+            : const Color(0xFF6D778D),
+        shape: BoxShape.circle,
+        boxShadow: active
+            ? const [
+                BoxShadow(
+                  color: Color(0x8839E27D),
+                  blurRadius: 9,
+                ),
+              ]
+            : null,
+      ),
+    );
+  }
+}
+
+class _MiniMetric extends StatelessWidget {
+  final String value;
+  final String label;
+  const _MiniMetric({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: value,
+            style: const TextStyle(
+              color: Color(0xFFC6CBD6),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          TextSpan(text: ' $label'),
+        ],
+      ),
+      style: const TextStyle(
+        color: Color(0xFF8D96AA),
+        fontSize: 10,
+      ),
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  final int value;
+  const _CountBadge({required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 31),
+      height: 31,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: const Color(0xFF101827),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFF253047)),
+      ),
+      child: Text(
+        '$value',
+        style: const TextStyle(
+          color: Color(0xFFABB3C2),
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String text;
+  const _InfoRow({
+    required this.icon,
+    required this.title,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFF39E27D), size: 19),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: Color(0xFF7C879B),
+                    fontSize: 10,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsLine extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _SettingsLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 9),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF7F8A9E)),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF8A94A7),
+              fontSize: 11,
+            ),
+          ),
+          const Spacer(),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 10,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+List<(String, String)> _targets(AppController controller) {
+  final result = <(String, String)>[];
+  for (final strip in controller.activeStrips) {
+    if (strip['online'] != true ||
+        strip['enabled'] == false ||
+        strip['state'] != 'active') {
+      continue;
+    }
+    final mac = strip['mac']?.toString() ?? '';
+    final name = strip['name']?.toString() ?? mac;
+    for (var outlet = 1; outlet <= 4; outlet++) {
+      result.add(('$mac:$outlet', '$name · Outlet $outlet'));
+    }
+  }
+  return result;
+}
+
+(String, int) _parseTarget(String value) {
+  final index = value.lastIndexOf(':');
+  if (index < 1) throw const VoltraException('Invalid outlet target.');
+  return (
+    value.substring(0, index),
+    int.parse(value.substring(index + 1)),
+  );
+}
+
+double _num(dynamic value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+void _snack(
+  BuildContext context,
+  String message, {
+  bool error = false,
+}) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor:
+          error ? const Color(0xFF4A1F29) : const Color(0xFF153425),
+    ),
+  );
+}
+).hasMatch(value)) {
+                setLocal(() => error = 'PIN must contain 4 to 6 digits.');
+                return;
+              }
+              if (value != confirm.text.trim()) {
+                setLocal(() => error = 'PIN confirmation does not match.');
+                return;
+              }
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Enable lock'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  first.dispose();
+  confirm.dispose();
+  return result;
+}
+
+Future<bool> _verifySecurityPin(
+  BuildContext context,
+  SecurityController security,
+) async {
+  final pin = TextEditingController();
+  String? error;
+  bool busy = false;
+
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (dialogContext, setLocal) => AlertDialog(
+        title: const Text('Confirm Voltra PIN'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Enter your current PIN to turn off app lock.',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pin,
+              autofocus: true,
+              enabled: !busy,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: const InputDecoration(
+                labelText: 'Current PIN',
+                counterText: '',
+              ),
+            ),
+            if (error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                error!,
+                style: const TextStyle(
+                  color: Color(0xFFFF8A95),
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: busy ? null : () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: busy
+                ? null
+                : () async {
+                    setLocal(() {
+                      busy = true;
+                      error = null;
+                    });
+                    final ok = await security.verifyPin(
+                      pin.text.trim(),
+                      unlockOnSuccess: false,
+                    );
+                    if (!dialogContext.mounted) return;
+                    if (ok) {
+                      Navigator.pop(dialogContext, true);
+                    } else {
+                      setLocal(() {
+                        busy = false;
+                        error = 'Incorrect PIN.';
+                      });
+                      pin.clear();
+                    }
+                  },
+            child: Text(busy ? 'Checking…' : 'Confirm'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  pin.dispose();
+  return result == true;
+}
+
+Future<int?> _chooseAutoLock(
+  BuildContext context,
+  int current,
+) {
+  const options = <int>[0, 30, 60, 300];
+  return showDialog<int>(
+    context: context,
+    builder: (dialogContext) => SimpleDialog(
+      title: const Text('Auto-lock'),
+      children: [
+        for (final seconds in options)
+          RadioListTile<int>(
+            value: seconds,
+            groupValue: current,
+            title: Text(_autoLockLabel(seconds)),
+            onChanged: (value) => Navigator.pop(dialogContext, value),
+          ),
+      ],
+    ),
+  );
+}
+
+String _autoLockLabel(int seconds) {
+  if (seconds == 0) return 'Immediately';
+  if (seconds < 60) return '$seconds seconds';
+  if (seconds == 60) return '1 minute';
+  return '${seconds ~/ 60} minutes';
+}
+
 class SettingsPage extends StatelessWidget {
   final AppController controller;
   final SecurityController security;
