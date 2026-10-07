@@ -242,7 +242,7 @@ class VoltraApi {
           if (decoded is! Map<String, dynamic>) continue;
           if (decoded['service'] != 'voltra-x') continue;
           final candidate = ServerCandidate(
-            host: datagram!.address.address,
+            host: datagram.address.address,
             httpPort: int.tryParse('${decoded['http_port']}') ?? 8086,
             tcpPort: int.tryParse('${decoded['tcp_port']}') ?? 10086,
             name: decoded['name']?.toString() ?? 'Voltra Server',
