@@ -1,0 +1,67 @@
+name: mobile-apk
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create clean Android scaffold
+        run: |
+          rm -rf /tmp/voltra_mobile
+          flutter create /tmp/voltra_mobile \
+            --platforms=android \
+            --org com.ayman.voltra \
+            --project-name voltra_mobile
+
+      - name: Overlay Voltra source
+        run: |
+          rm -rf /tmp/voltra_mobile/lib
+          cp -R mobile/lib /tmp/voltra_mobile/lib
+          cp mobile/pubspec.yaml /tmp/voltra_mobile/pubspec.yaml
+          cp mobile/android/AndroidManifest.xml /tmp/voltra_mobile/android/app/src/main/AndroidManifest.xml
+
+      - name: Install dependencies
+        working-directory: /tmp/voltra_mobile
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: /tmp/voltra_mobile
+        run: flutter analyze
+
+      - name: Test
+        working-directory: /tmp/voltra_mobile
+        run: flutter test
+
+      - name: Build release APK
+        working-directory: /tmp/voltra_mobile
+        run: flutter build apk --release
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p mobile-artifact
+          cp /tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release.apk mobile-artifact/Voltra-Mobile-v1.0.0.apk
+          sha256sum mobile-artifact/Voltra-Mobile-v1.0.0.apk > mobile-artifact/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Voltra-Mobile-v1.0.0
+          path: mobile-artifact/
+          retention-days: 90
+          if-no-files-found: error
