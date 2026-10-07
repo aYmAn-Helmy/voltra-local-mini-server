@@ -32,8 +32,9 @@ jobs:
 
       - name: Overlay Voltra source
         run: |
-          rm -rf /tmp/voltra_mobile/lib
+          rm -rf /tmp/voltra_mobile/lib /tmp/voltra_mobile/test
           cp -R mobile/lib /tmp/voltra_mobile/lib
+          cp -R mobile/test /tmp/voltra_mobile/test
           cp mobile/pubspec.yaml /tmp/voltra_mobile/pubspec.yaml
           cp mobile/android/AndroidManifest.xml /tmp/voltra_mobile/android/app/src/main/AndroidManifest.xml
 
