@@ -56,48 +56,11 @@ jobs:
           KEY_ALIAS: ${{ secrets.VOLTRA_ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.VOLTRA_ANDROID_KEY_PASSWORD }}
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          gradle = Path("/tmp/voltra_mobile/android/app/build.gradle.kts")
-          text = gradle.read_text()
-          marker = "    buildTypes {"
-          block = """    signingConfigs {
-                  if (file("voltra-release.jks").exists()) {
-                      create("voltraRelease") {
-                          val props = java.util.Properties()
-                          props.load(rootProject.file("key.properties").inputStream())
-                          keyAlias = props["keyAlias"] as String
-                          keyPassword = props["keyPassword"] as String
-                          storeFile = file(props["storeFile"] as String)
-                          storePassword = props["storePassword"] as String
-                      }
-                  }
-              }
-
-          """
-          if marker not in text:
-              raise SystemExit("Flutter Gradle template changed: buildTypes marker missing")
-          text = text.replace(marker, block + marker, 1)
-          text = text.replace(
-              'signingConfig = signingConfigs.getByName("debug")',
-              'signingConfig = if (file("voltra-release.jks").exists()) signingConfigs.getByName("voltraRelease") else signingConfigs.getByName("debug")',
-              1,
-          )
-          gradle.write_text(text)
-          PY
-
           if [ -n "$KEYSTORE_B64" ]; then
             test -n "$KEYSTORE_PASSWORD"
             test -n "$KEY_ALIAS"
             test -n "$KEY_PASSWORD"
-            printf '%s' "$KEYSTORE_B64" | base64 -d > /tmp/voltra_mobile/android/app/voltra-release.jks
-            cat > /tmp/voltra_mobile/android/key.properties <<EOF
-          storePassword=$KEYSTORE_PASSWORD
-          keyPassword=$KEY_PASSWORD
-          keyAlias=$KEY_ALIAS
-          storeFile=voltra-release.jks
-          EOF
+            printf '%s' "$KEYSTORE_B64" | base64 -d > /tmp/voltra_mobile/voltra-release.jks
             echo "VOLTRA_SIGNING=production" >> "$GITHUB_ENV"
           else
             echo "VOLTRA_SIGNING=test" >> "$GITHUB_ENV"
@@ -119,10 +82,35 @@ jobs:
         working-directory: /tmp/voltra_mobile
         run: flutter build apk --release
 
+      - name: Apply and verify production APK signature
+        if: env.VOLTRA_SIGNING == 'production'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.VOLTRA_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.VOLTRA_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.VOLTRA_ANDROID_KEY_PASSWORD }}
+        run: |
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          APKSIGNER="$BUILD_TOOLS/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" sign \
+            --ks /tmp/voltra_mobile/voltra-release.jks \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --out /tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release-production.apk \
+            /tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release.apk
+          "$APKSIGNER" verify --verbose --print-certs \
+            /tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release-production.apk
+
       - name: Prepare artifact
         run: |
           mkdir -p mobile-artifact
-          cp /tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release.apk "mobile-artifact/Voltra-Mobile-v1.1.0-${VOLTRA_SIGNING}-signed.apk"
+          if [ "$VOLTRA_SIGNING" = "production" ]; then
+            SRC=/tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release-production.apk
+          else
+            SRC=/tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release.apk
+          fi
+          cp "$SRC" "mobile-artifact/Voltra-Mobile-v1.1.0-${VOLTRA_SIGNING}-signed.apk"
           sha256sum mobile-artifact/*.apk > mobile-artifact/SHA256SUMS.txt
           printf 'package_id=com.ayman.voltra.voltra_mobile\nversion=1.1.0+2\nsigning=%s\n' "$VOLTRA_SIGNING" > mobile-artifact/BUILD-INFO.txt
 
