@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,6 +9,9 @@ import 'voltra_api.dart';
 
 class AppController extends ChangeNotifier {
   static const _serverKey = 'voltra.server';
+  static const _secureServerKey = 'voltra.server.secure';
+
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
   VoltraApi? api;
   Map<String, dynamic>? overview;
@@ -63,7 +67,13 @@ class AppController extends ChangeNotifier {
     appVersion = info.version;
     appBuild = info.buildNumber;
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_serverKey);
+    var saved = await _secureStorage.read(key: _secureServerKey);
+    final legacy = prefs.getString(_serverKey);
+    if ((saved == null || saved.isEmpty) && legacy != null && legacy.isNotEmpty) {
+      saved = legacy;
+      await _secureStorage.write(key: _secureServerKey, value: legacy);
+      await prefs.remove(_serverKey);
+    }
     if (saved == null || saved.isEmpty) return;
     await connect(saved, persist: false, silent: true);
   }
@@ -82,8 +92,12 @@ class AppController extends ChangeNotifier {
       api = candidate;
       connected = true;
       if (persist) {
+        await _secureStorage.write(
+          key: _secureServerKey,
+          value: candidate.baseUrl,
+        );
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_serverKey, candidate.baseUrl);
+        await prefs.remove(_serverKey);
       }
       await refresh();
       _startPolling();
@@ -103,6 +117,7 @@ class AppController extends ChangeNotifier {
     api = null;
     overview = null;
     connected = false;
+    await _secureStorage.delete(key: _secureServerKey);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_serverKey);
     notifyListeners();
