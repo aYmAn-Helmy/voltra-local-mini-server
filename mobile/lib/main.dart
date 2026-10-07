@@ -3672,6 +3672,104 @@ class SettingsPage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
+        const _SectionTitle(
+          eyebrow: 'SECURITY',
+          title: 'App lock',
+        ),
+        const SizedBox(height: 10),
+        Card(
+          child: Column(
+            children: [
+              SwitchListTile(
+                secondary: const Icon(Icons.lock_outline_rounded),
+                value: security.enabled,
+                title: const Text('Protect Voltra'),
+                subtitle: Text(
+                  security.enabled
+                      ? 'PIN is required after Voltra auto-locks.'
+                      : 'Add a local PIN before anyone can control your strips.',
+                ),
+                onChanged: (value) async {
+                  if (value) {
+                    final pin = await _showSetPinDialog(context);
+                    if (pin == null) return;
+                    try {
+                      await security.enableWithPin(pin);
+                      if (context.mounted) {
+                        _snack(context, 'Voltra app lock enabled.');
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        _snack(context, e.toString(), error: true);
+                      }
+                    }
+                    return;
+                  }
+
+                  final confirmed =
+                      await _verifySecurityPin(context, security);
+                  if (!confirmed) return;
+                  await security.disable();
+                  if (context.mounted) {
+                    _snack(context, 'Voltra app lock disabled.');
+                  }
+                },
+              ),
+              if (security.enabled) ...[
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.fingerprint_rounded),
+                  value: security.biometricEnabled,
+                  title: const Text('Biometric unlock'),
+                  subtitle: Text(
+                    security.canUseBiometrics
+                        ? 'Use fingerprint or face authentication on this device.'
+                        : 'No supported biometric authentication is available.',
+                  ),
+                  onChanged: security.canUseBiometrics
+                      ? (value) async {
+                          final ok =
+                              await security.setBiometricEnabled(value);
+                          if (context.mounted && value && !ok) {
+                            _snack(
+                              context,
+                              'Biometric authentication was not completed.',
+                              error: true,
+                            );
+                          }
+                        }
+                      : null,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.timer_outlined),
+                  title: const Text('Auto-lock'),
+                  subtitle: const Text(
+                    'Lock Voltra after the app stays in the background.',
+                  ),
+                  trailing: Text(_autoLockLabel(security.autoLockSeconds)),
+                  onTap: () async {
+                    final seconds = await _chooseAutoLock(
+                      context,
+                      security.autoLockSeconds,
+                    );
+                    if (seconds != null) {
+                      await security.setAutoLockSeconds(seconds);
+                    }
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.lock_clock_outlined),
+                  title: const Text('Lock now'),
+                  subtitle: const Text('Require PIN or biometrics immediately.'),
+                  onTap: security.lock,
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
         const _InfoRow(
           icon: Icons.lock_outline_rounded,
           title: 'No cloud account',
