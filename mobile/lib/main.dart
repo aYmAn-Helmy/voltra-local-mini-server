@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'app_controller.dart';
 import 'security_controller.dart';
+import 'security_ui.dart';
 import 'voltra_api.dart';
 
 void main() {
@@ -129,7 +130,7 @@ class _VoltraMobileAppState extends State<VoltraMobileApp>
               animation: security,
               builder: (context, _) {
                 if (security.enabled && !security.unlocked) {
-                  return LockScreen(security: security);
+                  return VoltraLockScreen(security: security);
                 }
                 return AnimatedBuilder(
                   animation: controller,
@@ -2018,39 +2019,7 @@ class _AddStripPageState extends State<AddStripPage> {
 }
 
 
-class LockScreen extends StatefulWidget {
-  final SecurityController security;
-  const LockScreen({super.key, required this.security});
-
-  @override
-  State<LockScreen> createState() => _LockScreenState();
-}
-
-class _LockScreenState extends State<LockScreen> {
-  final pin = TextEditingController();
-  bool busy = false;
-  String? error;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.security.biometricEnabled) {
-        _useBiometric();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    pin.dispose();
-    super.dispose();
-  }
-
-  Future<void> _unlockWithPin() async {
-    if (busy) return;
-    final value = pin.text.trim();
-    if (!RegExp(r'^\d{4,6}
+class SettingsPage extends StatelessWidget {
   final AppController controller;
   final SecurityController security;
   const SettingsPage({
@@ -2165,6 +2134,13 @@ class _LockScreenState extends State<LockScreen> {
             ],
           ),
         ),
+        const SizedBox(height: 18),
+        const _SectionTitle(
+          eyebrow: 'SECURITY',
+          title: 'App lock',
+        ),
+        const SizedBox(height: 10),
+        SecuritySettingsCard(security: security),
         const SizedBox(height: 18),
         const _InfoRow(
           icon: Icons.lock_outline_rounded,
