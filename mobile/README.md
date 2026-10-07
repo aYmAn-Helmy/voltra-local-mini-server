@@ -2,7 +2,7 @@
 
 Native Android controller for the Voltra Local Mini Server.
 
-## v1.1.0 — production identity
+## v1.2.0 — local security
 
 Permanent Android package ID:
 
@@ -10,12 +10,22 @@ Permanent Android package ID:
 com.ayman.voltra.voltra_mobile
 ```
 
-v1.1 adds:
+v1.2 adds:
 
-- Voltra launcher icon
-- Android adaptive icon
+- optional 4–6 digit Voltra app PIN
+- biometric unlock on supported Android devices
+- configurable background auto-lock
+- one-tap **Lock now**
+- salted PIN hashing stored only on the device
+- secure storage for the saved Voltra server address
+- automatic migration of the saved server from v1.1 SharedPreferences
+- Android biometric activity/theme compatibility while keeping the permanent package ID
+
+v1.1 production identity remains unchanged:
+
+- Voltra launcher icon and adaptive icon
 - branded dark Voltra splash screen
-- explicit permanent package identity
+- permanent package identity
 - app/server version information
 - production signing support in GitHub Actions
 - deterministic artifact naming with signing mode

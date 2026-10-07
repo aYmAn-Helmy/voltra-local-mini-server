@@ -6,6 +6,10 @@ on:
     paths:
       - "mobile/**"
       - ".github/workflows/mobile-apk.yml"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-apk.yml"
   workflow_dispatch:
 
 permissions:
@@ -49,7 +53,27 @@ jobs:
           dart run flutter_launcher_icons
           dart run flutter_native_splash:create
 
+      - name: Make Android launch theme biometric-compatible
+        working-directory: /tmp/voltra_mobile
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          for path in Path("android/app/src/main/res").rglob("styles.xml"):
+              text = path.read_text()
+              text = text.replace(
+                  'parent="@android:style/Theme.Light.NoTitleBar"',
+                  'parent="Theme.AppCompat.DayNight.NoActionBar"',
+              )
+              text = text.replace(
+                  'parent="@android:style/Theme.Black.NoTitleBar"',
+                  'parent="Theme.AppCompat.DayNight.NoActionBar"',
+              )
+              path.write_text(text)
+          PY
+
       - name: Configure optional production signing
+        if: github.event_name != 'pull_request'
         env:
           KEYSTORE_B64: ${{ secrets.VOLTRA_ANDROID_KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.VOLTRA_ANDROID_KEYSTORE_PASSWORD }}
@@ -65,6 +89,10 @@ jobs:
           else
             echo "VOLTRA_SIGNING=test" >> "$GITHUB_ENV"
           fi
+
+      - name: Use test signing for pull requests
+        if: github.event_name == 'pull_request'
+        run: echo "VOLTRA_SIGNING=test" >> "$GITHUB_ENV"
 
       - name: Verify permanent application ID
         run: |
@@ -110,13 +138,13 @@ jobs:
           else
             SRC=/tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release.apk
           fi
-          cp "$SRC" "mobile-artifact/Voltra-Mobile-v1.1.0-${VOLTRA_SIGNING}-signed.apk"
+          cp "$SRC" "mobile-artifact/Voltra-Mobile-v1.2.0-${VOLTRA_SIGNING}-signed.apk"
           sha256sum mobile-artifact/*.apk > mobile-artifact/SHA256SUMS.txt
-          printf 'package_id=com.ayman.voltra.voltra_mobile\nversion=1.1.0+2\nsigning=%s\n' "$VOLTRA_SIGNING" > mobile-artifact/BUILD-INFO.txt
+          printf 'package_id=com.ayman.voltra.voltra_mobile\nversion=1.2.0+3\nsigning=%s\n' "$VOLTRA_SIGNING" > mobile-artifact/BUILD-INFO.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Voltra-Mobile-v1.1.0
+          name: Voltra-Mobile-v1.2.0
           path: mobile-artifact/
           retention-days: 90
           if-no-files-found: error
