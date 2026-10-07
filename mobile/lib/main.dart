@@ -3538,11 +3538,22 @@ Future<int?> _chooseAutoLock(
       title: const Text('Auto-lock'),
       children: [
         for (final seconds in options)
-          RadioListTile<int>(
-            value: seconds,
-            groupValue: current,
-            title: Text(_autoLockLabel(seconds)),
-            onChanged: (value) => Navigator.pop(dialogContext, value),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, seconds),
+            child: Row(
+              children: [
+                Icon(
+                  seconds == current
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_off_rounded,
+                  color: seconds == current
+                      ? const Color(0xFF39E27D)
+                      : const Color(0xFF7E899E),
+                ),
+                const SizedBox(width: 12),
+                Text(_autoLockLabel(seconds)),
+              ],
+            ),
           ),
       ],
     ),
