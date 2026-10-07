@@ -379,9 +379,9 @@ class SecuritySettingsCard extends StatelessWidget {
 
   String _autoLockLabel(int seconds) {
     if (seconds == 0) return 'Immediately';
-    if (seconds < 60) return seconds.toString() + ' seconds';
+    if (seconds < 60) return '$seconds seconds';
     if (seconds == 60) return '1 minute';
-    return (seconds ~/ 60).toString() + ' minutes';
+    return '${seconds ~/ 60} minutes';
   }
 
   Future<int?> _chooseAutoLock(BuildContext context) {
