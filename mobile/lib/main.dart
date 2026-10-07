@@ -2004,7 +2004,7 @@ class SettingsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'App 1.0.0 · Server v${controller.version}',
+                  'App v${controller.appVersion} (${controller.appBuild}) · Server v${controller.version}',
                   style: const TextStyle(
                     color: Color(0xFF828C9F),
                     fontSize: 11,

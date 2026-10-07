@@ -1,7 +1,7 @@
 name: voltra_mobile
 description: Voltra local-first Android controller for MTTL-W01 smart power strips.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -10,12 +10,36 @@ dependencies:
   flutter:
     sdk: flutter
   http: ^1.2.2
+  package_info_plus: ^8.1.2
   shared_preferences: ^2.3.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.6
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/voltra_icon.png
+    - assets/voltra_foreground.png
+
+flutter_launcher_icons:
+  android: true
+  image_path: assets/voltra_icon.png
+  min_sdk_android: 21
+  adaptive_icon_background: "#070C16"
+  adaptive_icon_foreground: assets/voltra_foreground.png
+  adaptive_icon_foreground_inset: 18
+
+flutter_native_splash:
+  color: "#070C16"
+  image: assets/voltra_foreground.png
+  android: true
+  ios: false
+  fullscreen: true
+  android_12:
+    color: "#070C16"
+    image: assets/voltra_foreground.png

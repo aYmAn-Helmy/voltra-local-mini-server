@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'voltra_api.dart';
@@ -19,6 +20,8 @@ class AppController extends ChangeNotifier {
   bool loading = false;
   bool connected = false;
   String? error;
+  String appVersion = '—';
+  String appBuild = '—';
   Timer? _poller;
 
   String get baseUrl => api?.baseUrl ?? '';
@@ -56,6 +59,9 @@ class AppController extends ChangeNotifier {
   String get version => overview?['version']?.toString() ?? '—';
 
   Future<void> initialize() async {
+    final info = await PackageInfo.fromPlatform();
+    appVersion = info.version;
+    appBuild = info.buildNumber;
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_serverKey);
     if (saved == null || saved.isEmpty) return;

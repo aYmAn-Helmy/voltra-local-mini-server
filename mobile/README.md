@@ -2,9 +2,25 @@
 
 Native Android controller for the Voltra Local Mini Server.
 
-## v1.0.0
+## v1.1.0 — production identity
 
-Features:
+Permanent Android package ID:
+
+```text
+com.ayman.voltra.voltra_mobile
+```
+
+v1.1 adds:
+
+- Voltra launcher icon
+- Android adaptive icon
+- branded dark Voltra splash screen
+- explicit permanent package identity
+- app/server version information
+- production signing support in GitHub Actions
+- deterministic artifact naming with signing mode
+
+Core features remain:
 
 - automatic Voltra-X LAN discovery over UDP 10087
 - manual server connection by IP/hostname
@@ -23,6 +39,8 @@ Features:
 The APK talks to the existing Voltra HTTP API on port 8086 and the server continues
 to own device TCP communication on port 10086.
 
+See `SIGNING.md` for permanent Android signing setup.
+
 ## Build
 
 GitHub Actions builds a release APK automatically from `.github/workflows/mobile-apk.yml`.
@@ -31,12 +49,16 @@ For local development:
 
 ```bash
 flutter create /tmp/voltra_mobile --platforms=android --org com.ayman.voltra --project-name voltra_mobile
-rm -rf /tmp/voltra_mobile/lib
+rm -rf /tmp/voltra_mobile/lib /tmp/voltra_mobile/test /tmp/voltra_mobile/assets
 cp -R mobile/lib /tmp/voltra_mobile/lib
+cp -R mobile/test /tmp/voltra_mobile/test
+cp -R mobile/assets /tmp/voltra_mobile/assets
 cp mobile/pubspec.yaml /tmp/voltra_mobile/pubspec.yaml
 cp mobile/android/AndroidManifest.xml /tmp/voltra_mobile/android/app/src/main/AndroidManifest.xml
 cd /tmp/voltra_mobile
 flutter pub get
+dart run flutter_launcher_icons
+dart run flutter_native_splash:create
 flutter run
 ```
 
