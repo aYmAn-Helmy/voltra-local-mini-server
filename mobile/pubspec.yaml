@@ -24,22 +24,21 @@ flutter:
   uses-material-design: true
   assets:
     - assets/voltra_icon.png
-    - assets/voltra_foreground.png
 
 flutter_launcher_icons:
   android: true
   image_path: assets/voltra_icon.png
   min_sdk_android: 21
   adaptive_icon_background: "#070C16"
-  adaptive_icon_foreground: assets/voltra_foreground.png
+  adaptive_icon_foreground: assets/voltra_icon.png
   adaptive_icon_foreground_inset: 18
 
 flutter_native_splash:
   color: "#070C16"
-  image: assets/voltra_foreground.png
+  image: assets/voltra_icon.png
   android: true
   ios: false
   fullscreen: true
   android_12:
     color: "#070C16"
-    image: assets/voltra_foreground.png
+    image: assets/voltra_icon.png
