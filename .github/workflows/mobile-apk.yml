@@ -6,6 +6,10 @@ on:
     paths:
       - "mobile/**"
       - ".github/workflows/mobile-apk.yml"
+  pull_request:
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-apk.yml"
   workflow_dispatch:
 
 permissions:
@@ -69,6 +73,7 @@ jobs:
           PY
 
       - name: Configure optional production signing
+        if: github.event_name != 'pull_request'
         env:
           KEYSTORE_B64: ${{ secrets.VOLTRA_ANDROID_KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.VOLTRA_ANDROID_KEYSTORE_PASSWORD }}
@@ -84,6 +89,10 @@ jobs:
           else
             echo "VOLTRA_SIGNING=test" >> "$GITHUB_ENV"
           fi
+
+      - name: Use test signing for pull requests
+        if: github.event_name == 'pull_request'
+        run: echo "VOLTRA_SIGNING=test" >> "$GITHUB_ENV"
 
       - name: Verify permanent application ID
         run: |
