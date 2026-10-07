@@ -1,7 +1,7 @@
 name: voltra_mobile
 description: Voltra local-first Android controller for MTTL-W01 smart power strips.
 publish_to: "none"
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -9,7 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  crypto: ^3.0.6
+  flutter_secure_storage: ^9.2.4
   http: ^1.2.2
+  local_auth: ^2.3.0
   package_info_plus: ^8.1.2
   shared_preferences: ^2.3.3
 
