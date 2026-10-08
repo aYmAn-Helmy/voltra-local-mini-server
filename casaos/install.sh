@@ -27,8 +27,12 @@ SOURCE_VERSION="$(sed -n 's/^__version__ = "\\(.*\\)"/\\1/p' voltra_local/__init
 echo "Source version: ${SOURCE_VERSION:-unknown}"
 
 if [ ! -f "$ENV_FILE" ]; then
+  TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
   cat > "$ENV_FILE" <<EOF
-VOLTRA_CORS_ORIGIN=*
+VOLTRA_API_TOKEN=$TOKEN
+VOLTRA_TRUSTED_PROXY=192.168.1.7/32
+VOLTRA_PUBLIC_ORIGIN=https://b8710ce04869.sn.mynetname.net
+VOLTRA_CORS_ORIGIN=https://b8710ce04869.sn.mynetname.net
 VOLTRA_POLL_INTERVAL=10
 VOLTRA_DIAGNOSTICS_INTERVAL=30
 VOLTRA_TELEMETRY_INTERVAL=60
@@ -36,10 +40,14 @@ VOLTRA_TIMEZONE=Africa/Cairo
 VOLTRA_DISCOVERY_PORT=10087
 EOF
   chmod 600 "$ENV_FILE"
-  echo "Created $ENV_FILE."
+  echo "Created secure $ENV_FILE with a random API token."
 else
-  sed -i '/^VOLTRA_API_TOKEN=/d' "$ENV_FILE" || true
-  echo "Using existing $ENV_FILE (API token removed/ignored)."
+  if ! grep -q '^VOLTRA_API_TOKEN=.' "$ENV_FILE"; then
+    TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+    printf '\nVOLTRA_API_TOKEN=%s\n' "$TOKEN" >> "$ENV_FILE"
+    echo "Added a random API token to existing $ENV_FILE."
+  fi
+  echo "Using existing $ENV_FILE."
 fi
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
 
@@ -58,3 +66,5 @@ echo "Device TCP: ${HOST_IP:-CASAOS-IP}:10086"
 echo "Voltra-X Discovery: UDP ${HOST_IP:-CASAOS-IP}:10087"
 echo
 echo "Use the CasaOS LAN IP as server IP when provisioning MTTL-W01 strips."
+echo "Remote API token is stored in $ENV_FILE (mode 600)."
+echo "View it locally with: grep '^VOLTRA_API_TOKEN=' $ENV_FILE"
