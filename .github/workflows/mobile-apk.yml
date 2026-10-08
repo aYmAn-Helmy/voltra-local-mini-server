@@ -138,13 +138,13 @@ jobs:
           else
             SRC=/tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release.apk
           fi
-          cp "$SRC" "mobile-artifact/Voltra-Mobile-v1.2.0-${VOLTRA_SIGNING}-signed.apk"
+          cp "$SRC" "mobile-artifact/Voltra-Mobile-v1.3.0-${VOLTRA_SIGNING}-signed.apk"
           sha256sum mobile-artifact/*.apk > mobile-artifact/SHA256SUMS.txt
-          printf 'package_id=com.ayman.voltra.voltra_mobile\nversion=1.2.0+3\nsigning=%s\n' "$VOLTRA_SIGNING" > mobile-artifact/BUILD-INFO.txt
+          printf 'package_id=com.ayman.voltra.voltra_mobile\nversion=1.3.0+4\nsigning=%s\n' "$VOLTRA_SIGNING" > mobile-artifact/BUILD-INFO.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Voltra-Mobile-v1.2.0
+          name: Voltra-Mobile-v1.3.0
           path: mobile-artifact/
           retention-days: 90
           if-no-files-found: error
