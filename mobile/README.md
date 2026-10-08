@@ -2,7 +2,13 @@
 
 Native Android controller for the Voltra Local Mini Server.
 
-## v1.3.0 — secure HTTPS remote access
+## v1.3.2 — direct strip provisioning from Android
+
+v1.3.2 fixes new-strip onboarding when the Voltra server is Ethernet-only. The Android phone now talks directly to the MTTL-W01 setup service on `192.168.1.1:30300` while the phone is connected to the temporary `TONLY_TAP...` Wi-Fi. It sends the Voltra server LAN IP first and the target 2.4 GHz Wi-Fi credentials second, using a fresh TCP connection for each command.
+
+The server-side provisioning API remains available for hosts that can themselves reach the strip setup AP.
+
+## v1.3.1 / v1.3.0 — secure HTTPS remote access
 
 Permanent Android package ID:
 
@@ -42,7 +48,7 @@ Core features remain:
 - countdown timers
 - one-tap scene execution
 - pending-strip adoption
-- MTTL-W01 Wi-Fi provisioning form
+- direct MTTL-W01 Wi-Fi provisioning from the Android phone while connected to TONLY_TAP
 - local-only operation with no mandatory cloud account
 
 The APK talks to the Voltra API directly on LAN or through the configured HTTPS reverse proxy and the server continues
