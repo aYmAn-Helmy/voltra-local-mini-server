@@ -292,7 +292,7 @@ class VoltraApi {
       }
       return utf8
           .decode(bytes.take(2048).toList(), allowMalformed: true)
-          .replaceAll(RegExp(r'[\x00\r\n ]+\$'), '')
+          .replaceAll(RegExp(r'[\x00\r\n ]+$'), '')
           .trim();
     } on TimeoutException {
       throw const VoltraException(
