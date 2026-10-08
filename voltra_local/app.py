@@ -49,6 +49,13 @@ def main() -> None:
     confirm_delay = env_float("VOLTRA_COMMAND_CONFIRM_DELAY", 0.15)
     rate_limit = env_int("VOLTRA_RATE_LIMIT_PER_MINUTE", 60)
     cors_origin = os.getenv("VOLTRA_CORS_ORIGIN", "*")
+    api_token = os.getenv("VOLTRA_API_TOKEN", "").strip()
+    trusted_proxy = os.getenv("VOLTRA_TRUSTED_PROXY", "").strip()
+    public_origin = os.getenv("VOLTRA_PUBLIC_ORIGIN", "").strip()
+    if api_token and len(api_token) < 32:
+        raise ValueError("VOLTRA_API_TOKEN must be at least 32 characters")
+    if public_origin and cors_origin == "*":
+        cors_origin = public_origin
     demo = env_bool("VOLTRA_DEMO", False)
     data_dir = Path(os.getenv("VOLTRA_DATA_DIR", "data"))
     store = ConfigStore(data_dir / "voltra.json")
@@ -57,6 +64,9 @@ def main() -> None:
     print(f"[APP] demo={'ON' if demo else 'OFF'}")
     print(f"[APP] data={store.path}")
     print(f"[APP] TCP={tcp_bind}:{tcp_port} HTTP={http_bind}:{http_port}")
+    print(f"[APP] API auth={'ON' if api_token else 'OFF'}")
+    if public_origin:
+        print(f"[APP] public origin={public_origin}")
 
     event_bus = EventBus()
     audit = AuditLog(data_dir / "audit.jsonl")
@@ -111,6 +121,9 @@ def main() -> None:
         audit=audit,
         event_bus=event_bus,
         rate_limit_per_minute=rate_limit,
+        api_token=api_token,
+        trusted_proxy=trusted_proxy,
+        public_origin=public_origin,
     )
     discovery = DiscoveryResponder(
         port=discovery_port,
