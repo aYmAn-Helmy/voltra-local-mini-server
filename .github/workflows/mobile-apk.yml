@@ -42,6 +42,8 @@ jobs:
           cp -R mobile/assets /tmp/voltra_mobile/assets
           cp mobile/pubspec.yaml /tmp/voltra_mobile/pubspec.yaml
           cp mobile/android/AndroidManifest.xml /tmp/voltra_mobile/android/app/src/main/AndroidManifest.xml
+          mkdir -p /tmp/voltra_mobile/android/app/src/main/kotlin/com/ayman/voltra/voltra_mobile
+          cp mobile/android/MainActivity.kt /tmp/voltra_mobile/android/app/src/main/kotlin/com/ayman/voltra/voltra_mobile/MainActivity.kt
 
       - name: Install dependencies
         working-directory: /tmp/voltra_mobile
