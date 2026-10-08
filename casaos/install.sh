@@ -68,3 +68,5 @@ echo
 echo "Use the CasaOS LAN IP as server IP when provisioning MTTL-W01 strips."
 echo "Remote API token is stored in $ENV_FILE (mode 600)."
 echo "View it locally with: grep '^VOLTRA_API_TOKEN=' $ENV_FILE"
+echo "Remote API token is stored in $ENV_FILE (mode 600)."
+echo "View it locally with: grep '^VOLTRA_API_TOKEN=' $ENV_FILE"
