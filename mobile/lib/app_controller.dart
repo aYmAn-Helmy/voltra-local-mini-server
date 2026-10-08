@@ -124,6 +124,9 @@ class AppController extends ChangeNotifier {
       await refresh();
       _startPolling();
     } catch (e) {
+      if (identical(api, candidate)) {
+        api = null;
+      }
       candidate?.close();
       connected = false;
       if (!silent) error = e.toString();
