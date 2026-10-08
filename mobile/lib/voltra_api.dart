@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cronet_http/cronet_http.dart';
+import 'package:ok_http/ok_http.dart';
 import 'package:http/http.dart' as http;
 
 class VoltraException implements Exception {
@@ -56,13 +56,7 @@ class VoltraApi {
 
   static http.Client _buildClient() {
     if (Platform.isAndroid) {
-      final engine = CronetEngine.build(
-        cacheMode: CacheMode.disabled,
-        enableHttp2: false,
-        enableQuic: false,
-        userAgent: 'Voltra-Mobile/1.3.1',
-      );
-      return CronetClient.fromCronetEngine(engine, closeEngine: true);
+      return OkHttpClient();
     }
     return http.Client();
   }
