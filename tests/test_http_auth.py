@@ -30,6 +30,7 @@ class HttpAuthenticationTests(unittest.TestCase):
             store,
             api_token=TOKEN,
             trusted_proxy="127.0.0.1/32",
+            rate_limit_per_minute=2,
         )
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -60,6 +61,12 @@ class HttpAuthenticationTests(unittest.TestCase):
                 self.assertEqual(caught.exception.code, 401)
                 payload = json.loads(caught.exception.read().decode("utf-8"))
                 self.assertEqual(payload["code"], "unauthorized")
+
+        with self.assertRaises(HTTPError) as caught:
+            self._get("/api/status", "wrong-again")
+        self.assertEqual(caught.exception.code, 429)
+        payload = json.loads(caught.exception.read().decode("utf-8"))
+        self.assertEqual(payload["code"], "auth_rate_limited")
 
     def test_protected_api_accepts_correct_token(self):
         with self._get("/api/status", TOKEN) as response:
