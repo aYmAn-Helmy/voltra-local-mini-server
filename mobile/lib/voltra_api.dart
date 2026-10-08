@@ -292,61 +292,7 @@ class VoltraApi {
       }
       return utf8
           .decode(bytes.take(2048).toList(), allowMalformed: true)
-          .replaceAll(RegExp(r'[\x00\r\n ]+
-  static Future<List<ServerCandidate>> discover({
-    Duration timeout = const Duration(seconds: 2),
-    int port = 10087,
-  }) async {
-    final socket = await RawDatagramSocket.bind(
-      InternetAddress.anyIPv4,
-      0,
-      reuseAddress: true,
-    );
-    socket.broadcastEnabled = true;
-    final results = <String, ServerCandidate>{};
-    final done = Completer<void>();
-    final timer = Timer(timeout, () {
-      if (!done.isCompleted) done.complete();
-    });
-
-    socket.send(
-      utf8.encode(_magic),
-      InternetAddress('255.255.255.255'),
-      port,
-    );
-
-    late StreamSubscription<RawSocketEvent> sub;
-    sub = socket.listen((event) {
-      if (event != RawSocketEvent.read) return;
-      Datagram? datagram;
-      while ((datagram = socket.receive()) != null) {
-        try {
-          final decoded = jsonDecode(utf8.decode(datagram!.data));
-          if (decoded is! Map<String, dynamic>) continue;
-          if (decoded['service'] != 'voltra-x') continue;
-          final candidate = ServerCandidate(
-            host: datagram.address.address,
-            httpPort: int.tryParse('${decoded['http_port']}') ?? 8086,
-            tcpPort: int.tryParse('${decoded['tcp_port']}') ?? 10086,
-            name: decoded['name']?.toString() ?? 'Voltra Server',
-            version: decoded['version']?.toString() ?? '',
-          );
-          results[candidate.baseUrl] = candidate;
-        } catch (_) {
-          // Ignore malformed LAN responses.
-        }
-      }
-    });
-
-    await done.future;
-    timer.cancel();
-    await sub.cancel();
-    socket.close();
-    return results.values.toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
-  }
-}
-), '')
+          .replaceAll(RegExp(r'[\x00\r\n ]+\$'), '')
           .trim();
     } on TimeoutException {
       throw const VoltraException(
