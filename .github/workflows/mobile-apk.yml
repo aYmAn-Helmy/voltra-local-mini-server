@@ -104,11 +104,11 @@ jobs:
 
       - name: Test
         working-directory: /tmp/voltra_mobile
-        run: flutter test --dart-define=cronetHttpNoPlay=true
+        run: flutter test
 
       - name: Build release APK
         working-directory: /tmp/voltra_mobile
-        run: flutter build apk --release --dart-define=cronetHttpNoPlay=true
+        run: flutter build apk --release
 
       - name: Apply and verify production APK signature
         if: env.VOLTRA_SIGNING == 'production'
