@@ -1809,7 +1809,7 @@ class _AddStripPageState extends State<AddStripPage> {
   final names = <String, TextEditingController>{};
   final ssid = TextEditingController();
   final password = TextEditingController();
-  final serverIp = TextEditingController();
+  final serverIp = TextEditingController(text: '192.168.1.45');
   final deviceIp = TextEditingController(text: '192.168.1.1');
 
   @override
@@ -1957,7 +1957,7 @@ class _AddStripPageState extends State<AddStripPage> {
           ),
           const SizedBox(height: 5),
           const Text(
-            'Use this while the Voltra host can reach the strip temporary TONLY_TAP network.',
+            'Put the strip in setup mode, connect THIS PHONE to its TONLY_TAP Wi-Fi, then send the settings directly from the phone.',
             style: TextStyle(
               color: Color(0xFF818BA0),
               fontSize: 11,
@@ -1990,7 +1990,7 @@ class _AddStripPageState extends State<AddStripPage> {
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       labelText: 'Voltra server LAN IP',
-                      hintText: '192.168.1.65',
+                      hintText: '192.168.1.45',
                     ),
                   ),
                   const SizedBox(height: 9),
@@ -2015,7 +2015,7 @@ class _AddStripPageState extends State<AddStripPage> {
                         if (context.mounted) {
                           _snack(
                             context,
-                            'Network settings sent. Wait for the strip to reconnect.',
+                            'Settings sent directly to the strip. Wait for TONLY_TAP to disappear, reconnect to your normal Wi-Fi, then refresh.',
                           );
                         }
                       } catch (e) {
@@ -2025,7 +2025,7 @@ class _AddStripPageState extends State<AddStripPage> {
                       }
                     },
                     icon: const Icon(Icons.router_rounded),
-                    label: const Text('Send network settings'),
+                    label: const Text('Provision from this phone'),
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(50),
                     ),

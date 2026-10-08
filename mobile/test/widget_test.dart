@@ -14,4 +14,25 @@ void main() {
 
     expect(server.baseUrl, 'http://192.168.1.65:8086');
   });
+
+  test('direct provisioning validates setup fields before opening a socket', () async {
+    expect(
+      VoltraApi.provisionDirect(
+        ssid: 'bad:ssid',
+        password: 'password',
+        serverIp: '192.168.1.45',
+      ),
+      throwsA(isA<VoltraException>()),
+    );
+
+    expect(
+      VoltraApi.provisionDirect(
+        ssid: 'Home WiFi',
+        password: 'password',
+        serverIp: 'not-an-ip',
+      ),
+      throwsA(isA<VoltraException>()),
+    );
+  });
+
 }

@@ -238,6 +238,163 @@ class VoltraApi {
         },
       );
 
+
+  static void _validateProvisioningFields({
+    required String ssid,
+    required String password,
+    required String serverIp,
+    required String deviceIp,
+    required int port,
+  }) {
+    if (ssid.isEmpty || ssid.length > 64) {
+      throw const VoltraException('Wi-Fi SSID is required and must be 64 characters or fewer.');
+    }
+    if (password.length > 128) {
+      throw const VoltraException('Wi-Fi password is too long.');
+    }
+    for (final value in [ssid, password]) {
+      if (value.contains(':') || value.contains('\r') || value.contains('\n')) {
+        throw const VoltraException(
+          'Wi-Fi name/password cannot contain colon or line-break characters for this strip.',
+        );
+      }
+    }
+    final server = InternetAddress.tryParse(serverIp);
+    if (server == null || server.type != InternetAddressType.IPv4) {
+      throw const VoltraException('Voltra server IP must be a valid IPv4 address.');
+    }
+    final device = InternetAddress.tryParse(deviceIp);
+    if (device == null || device.type != InternetAddressType.IPv4) {
+      throw const VoltraException('Strip setup IP must be a valid IPv4 address.');
+    }
+    if (port < 1 || port > 65535) {
+      throw const VoltraException('Strip setup port is invalid.');
+    }
+  }
+
+  static Future<String> _setupExchange({
+    required String deviceIp,
+    required int port,
+    required String command,
+    required Duration timeout,
+  }) async {
+    Socket? socket;
+    try {
+      socket = await Socket.connect(deviceIp, port, timeout: timeout);
+      socket.setOption(SocketOption.tcpNoDelay, true);
+      socket.write('$command\r\n');
+      await socket.flush();
+
+      final bytes = <int>[];
+      await for (final chunk in socket.timeout(timeout)) {
+        bytes.addAll(chunk);
+        if (bytes.length >= 2048 || chunk.contains(10)) break;
+      }
+      return utf8
+          .decode(bytes.take(2048).toList(), allowMalformed: true)
+          .replaceAll(RegExp(r'[\x00\r\n ]+$'), '')
+          .trim();
+    } on TimeoutException {
+      throw const VoltraException(
+        'Timed out talking to the strip. Make sure the phone is connected to its TONLY_TAP Wi-Fi.',
+      );
+    } on SocketException catch (e) {
+      throw VoltraException(
+        'Cannot reach the strip setup service at $deviceIp:$port. '
+        'Connect this phone to the strip TONLY_TAP Wi-Fi first. (${e.message})',
+      );
+    } finally {
+      socket?.destroy();
+    }
+  }
+
+  /// Provision an MTTL-W01 directly from the Android phone.
+  ///
+  /// The phone must be connected to the strip temporary TONLY_TAP Wi-Fi.
+  /// Each setup command uses a fresh TCP connection because the setup service
+  /// is short-lived and the original device protocol expects this sequence.
+  static Future<Map<String, dynamic>> provisionDirect({
+    required String ssid,
+    required String password,
+    required String serverIp,
+    String deviceIp = '192.168.1.1',
+    int port = 30300,
+    Duration timeout = const Duration(seconds: 3),
+    int attempts = 3,
+  }) async {
+    final cleanSsid = ssid.trim();
+    final cleanServerIp = serverIp.trim();
+    final cleanDeviceIp = deviceIp.trim();
+
+    _validateProvisioningFields(
+      ssid: cleanSsid,
+      password: password,
+      serverIp: cleanServerIp,
+      deviceIp: cleanDeviceIp,
+      port: port,
+    );
+    if (attempts < 1 || attempts > 10) {
+      throw const VoltraException('Provisioning retry count is invalid.');
+    }
+
+    final steps = <(String, String, String)>[
+      ('server_ip', 'up:ip:$cleanServerIp', 'ip_ok'),
+      ('wifi', 'up:connect:$cleanSsid:$password', 'connect_ok'),
+    ];
+    final responses = <Map<String, dynamic>>[];
+
+    for (final step in steps) {
+      VoltraException? lastError;
+      String response = '';
+      var completed = false;
+
+      for (var attempt = 1; attempt <= attempts; attempt++) {
+        try {
+          response = await _setupExchange(
+            deviceIp: cleanDeviceIp,
+            port: port,
+            command: step.$2,
+            timeout: timeout,
+          );
+          if (response.contains(step.$3)) {
+            responses.add({
+              'step': step.$1,
+              'ok': true,
+              'attempt': attempt,
+              'response': response,
+            });
+            completed = true;
+            break;
+          }
+          lastError = VoltraException(
+            '${step.$1} returned an unexpected response: '
+            '${response.isEmpty ? '<empty>' : response}',
+          );
+        } on VoltraException catch (e) {
+          lastError = e;
+        }
+
+        if (attempt < attempts) {
+          await Future<void>.delayed(const Duration(milliseconds: 800));
+        }
+      }
+
+      if (!completed) {
+        throw VoltraException(
+          '${step.$1} failed after $attempts attempts. '
+          '${lastError?.message ?? response}',
+        );
+      }
+    }
+
+    return {
+      'ok': true,
+      'device_ip': cleanDeviceIp,
+      'server_ip': cleanServerIp,
+      'responses': responses,
+    };
+  }
+
   void close() => _client.close();
 
   static Future<List<ServerCandidate>> discover({

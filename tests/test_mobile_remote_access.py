@@ -10,11 +10,21 @@ class MobileRemoteAccessSourceTests(unittest.TestCase):
         pubspec = (ROOT / "mobile" / "pubspec.yaml").read_text(encoding="utf-8")
         controller = (ROOT / "mobile" / "lib" / "app_controller.dart").read_text(encoding="utf-8")
         api = (ROOT / "mobile" / "lib" / "voltra_api.dart").read_text(encoding="utf-8")
-        self.assertIn("version: 1.3.1+5", pubspec)
+        self.assertIn("version: 1.3.2+6", pubspec)
         self.assertIn("voltra.api.token.secure", controller)
         self.assertIn("FlutterSecureStorage", controller)
         self.assertIn("'authorization': 'Bearer $apiToken'", api)
         self.assertNotIn("badCertificateCallback", api)
+
+    def test_direct_strip_provisioning_is_phone_side(self):
+        controller = (ROOT / "mobile" / "lib" / "app_controller.dart").read_text(encoding="utf-8")
+        api = (ROOT / "mobile" / "lib" / "voltra_api.dart").read_text(encoding="utf-8")
+        ui = (ROOT / "mobile" / "lib" / "main.dart").read_text(encoding="utf-8")
+        self.assertIn("VoltraApi.provisionDirect", controller)
+        self.assertIn("Socket.connect(deviceIp, port", api)
+        self.assertIn("up:ip:$cleanServerIp", api)
+        self.assertIn("up:connect:$cleanSsid:$password", api)
+        self.assertIn("Provision from this phone", ui)
 
     def test_https_is_supported_without_tls_bypass(self):
         api = (ROOT / "mobile" / "lib" / "voltra_api.dart").read_text(encoding="utf-8")
