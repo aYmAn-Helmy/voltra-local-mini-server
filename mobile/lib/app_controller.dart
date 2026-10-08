@@ -10,6 +10,7 @@ import 'voltra_api.dart';
 class AppController extends ChangeNotifier {
   static const _serverKey = 'voltra.server';
   static const _secureServerKey = 'voltra.server.secure';
+  static const _secureTokenKey = 'voltra.api.token.secure';
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
@@ -29,6 +30,8 @@ class AppController extends ChangeNotifier {
   Timer? _poller;
 
   String get baseUrl => api?.baseUrl ?? '';
+  bool get apiTokenConfigured => api?.hasApiToken ?? false;
+  bool get usingHttps => api?.isHttps ?? false;
 
   List<Map<String, dynamic>> get strips {
     final raw = overview?['strips'];
@@ -75,11 +78,18 @@ class AppController extends ChangeNotifier {
       await prefs.remove(_serverKey);
     }
     if (saved == null || saved.isEmpty) return;
-    await connect(saved, persist: false, silent: true);
+    final savedToken = await _secureStorage.read(key: _secureTokenKey);
+    await connect(
+      saved,
+      apiToken: savedToken ?? '',
+      persist: false,
+      silent: true,
+    );
   }
 
   Future<void> connect(
     String url, {
+    String apiToken = '',
     bool persist = true,
     bool silent = false,
   }) async {
@@ -87,8 +97,9 @@ class AppController extends ChangeNotifier {
     if (!silent) error = null;
     notifyListeners();
     try {
-      final candidate = VoltraApi(url);
+      final candidate = VoltraApi(url, apiToken: apiToken);
       await candidate.health();
+      await candidate.overview();
       api = candidate;
       connected = true;
       if (persist) {
@@ -96,6 +107,14 @@ class AppController extends ChangeNotifier {
           key: _secureServerKey,
           value: candidate.baseUrl,
         );
+        if (candidate.apiToken.isEmpty) {
+          await _secureStorage.delete(key: _secureTokenKey);
+        } else {
+          await _secureStorage.write(
+            key: _secureTokenKey,
+            value: candidate.apiToken,
+          );
+        }
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove(_serverKey);
       }
@@ -118,6 +137,7 @@ class AppController extends ChangeNotifier {
     overview = null;
     connected = false;
     await _secureStorage.delete(key: _secureServerKey);
+    await _secureStorage.delete(key: _secureTokenKey);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_serverKey);
     notifyListeners();
