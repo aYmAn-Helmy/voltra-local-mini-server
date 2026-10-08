@@ -2,7 +2,7 @@
 
 Native Android controller for the Voltra Local Mini Server.
 
-## v1.2.0 — local security
+## v1.3.0 — secure HTTPS remote access
 
 Permanent Android package ID:
 
@@ -10,16 +10,15 @@ Permanent Android package ID:
 com.ayman.voltra.voltra_mobile
 ```
 
-v1.2 adds:
+v1.3 adds:
 
-- optional 4–6 digit Voltra app PIN
-- biometric unlock on supported Android devices
-- configurable background auto-lock
-- one-tap **Lock now**
-- salted PIN hashing stored only on the device
-- secure storage for the saved Voltra server address
-- automatic migration of the saved server from v1.1 SharedPreferences
-- Android biometric activity/theme compatibility while keeping the permanent package ID
+- first-class `https://` Voltra server URLs
+- optional Bearer access token for protected remote APIs
+- access token stored with `flutter_secure_storage`
+- authentication error handling for HTTP 401
+- public MikroTik URL support without disabling TLS validation
+- LAN discovery and intentional local HTTP support remain available
+- v1.2 PIN/biometric app lock remains unchanged
 
 v1.1 production identity remains unchanged:
 
@@ -33,8 +32,8 @@ v1.1 production identity remains unchanged:
 Core features remain:
 
 - automatic Voltra-X LAN discovery over UDP 10087
-- manual server connection by IP/hostname
-- server address saved on the phone
+- manual server connection by LAN IP, hostname, or HTTPS URL
+- server address and optional API token saved securely on the phone
 - live strip dashboard and total power
 - four outlet controls per strip
 - Turn all on / Turn all off
@@ -46,7 +45,7 @@ Core features remain:
 - MTTL-W01 Wi-Fi provisioning form
 - local-only operation with no mandatory cloud account
 
-The APK talks to the existing Voltra HTTP API on port 8086 and the server continues
+The APK talks to the Voltra API directly on LAN or through the configured HTTPS reverse proxy and the server continues
 to own device TCP communication on port 10086.
 
 See `SIGNING.md` for permanent Android signing setup.
@@ -72,4 +71,4 @@ dart run flutter_native_splash:create
 flutter run
 ```
 
-Android allows clear-text HTTP intentionally because Voltra is designed for a trusted local LAN.
+Android allows clear-text HTTP only for intentional trusted-LAN use. Remote connections should use a valid HTTPS certificate; the app does not bypass TLS certificate validation.

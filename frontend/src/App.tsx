@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CirclePlus, LoaderCircle, Star, Trash2 } from "lucide-react";
 
-import { api, subscribeEvents } from "./api";
+import { AuthError, api, getApiToken, setApiToken, subscribeEvents } from "./api";
 import { AddStripView, AutomationView, DashboardView, EnergyView, RoomsView, SettingsView } from "./views";
 import { AppHeader, BottomNav, ConfirmDialog, Modal } from "./ui";
 import type { AutomationSnapshot, Overview, Strip, ViewName } from "./types";
@@ -40,6 +40,8 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; error: boolean } | null>(null);
   const [editingStrip, setEditingStrip] = useState<Strip | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [tokenDraft, setTokenDraft] = useState(() => getApiToken());
   const [stripDraft, setStripDraft] = useState({ name: "", room: "", favorite: false, enabled: true });
   const refreshTimer = useRef<number | null>(null);
 
@@ -49,13 +51,31 @@ export default function App() {
   }, []);
 
   const refreshOverview = useCallback(async () => {
-    const next = await api.overview();
-    setOverview(next);
+    try {
+      const next = await api.overview();
+      setOverview(next);
+      setAuthRequired(false);
+    } catch (error) {
+      if (error instanceof AuthError) {
+        setAuthRequired(true);
+        return;
+      }
+      throw error;
+    }
   }, []);
 
   const refreshAutomation = useCallback(async () => {
-    const next = await api.automation();
-    setAutomation(next);
+    try {
+      const next = await api.automation();
+      setAutomation(next);
+      setAuthRequired(false);
+    } catch (error) {
+      if (error instanceof AuthError) {
+        setAuthRequired(true);
+        return;
+      }
+      throw error;
+    }
   }, []);
 
   const refreshAll = useCallback(async () => {
@@ -65,7 +85,11 @@ export default function App() {
       setOverview(nextOverview);
       setAutomation(nextAutomation);
     } catch (error) {
-      notify(error instanceof Error ? error.message : String(error), true);
+      if (error instanceof AuthError) {
+        setAuthRequired(true);
+      } else {
+        notify(error instanceof Error ? error.message : String(error), true);
+      }
     } finally {
       setLoading(false);
     }
@@ -76,12 +100,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = subscribeEvents(() => {
-      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
-      refreshTimer.current = window.setTimeout(() => {
-        refreshAll();
-      }, 180);
-    });
+    const unsubscribe = subscribeEvents(
+      () => {
+        if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+        refreshTimer.current = window.setTimeout(() => {
+          refreshAll();
+        }, 180);
+      },
+      () => setAuthRequired(true),
+    );
     const fallback = window.setInterval(refreshOverview, 15_000);
     return () => {
       unsubscribe();
@@ -177,6 +204,53 @@ export default function App() {
         notify("Strip removed.");
       },
     });
+  }
+
+  if (authRequired) {
+    return (
+      <div className="boot-screen">
+        <span className="boot-mark">V</span>
+        <strong>Voltra authentication</strong>
+        <small>Enter the access token configured on your Voltra server. The token is kept only in this browser session.</small>
+        <div className="settings-form" style={{ width: "min(420px, 92vw)" }}>
+          <label>
+            <span>Access token</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={tokenDraft}
+              onChange={(event) => setTokenDraft(event.target.value)}
+              placeholder="Paste Voltra access token"
+            />
+          </label>
+        </div>
+        <div className="boot-actions">
+          <button
+            className="button primary"
+            onClick={() => {
+              setApiToken(tokenDraft);
+              setAuthRequired(false);
+              setLoading(true);
+              void refreshAll();
+            }}
+            disabled={!tokenDraft.trim()}
+          >
+            Connect securely
+          </button>
+          {getApiToken() && (
+            <button
+              className="button secondary"
+              onClick={() => {
+                setApiToken("");
+                setTokenDraft("");
+              }}
+            >
+              Clear saved session token
+            </button>
+          )}
+        </div>
+      </div>
+    );
   }
 
   if (!overview && loading) {

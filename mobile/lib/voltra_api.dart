@@ -32,9 +32,20 @@ class ServerCandidate {
 }
 
 class VoltraApi {
-  VoltraApi(String baseUrl) : baseUrl = _normalize(baseUrl);
+  VoltraApi(String baseUrl, {String? apiToken})
+      : baseUrl = _normalize(baseUrl),
+        apiToken = apiToken?.trim() ?? '';
 
   final String baseUrl;
+  final String apiToken;
+
+  bool get hasApiToken => apiToken.isNotEmpty;
+  bool get isHttps => Uri.tryParse(baseUrl)?.scheme.toLowerCase() == 'https';
+
+  Map<String, String> _headers({bool json = false}) => {
+        if (json) 'content-type': 'application/json',
+        if (apiToken.isNotEmpty) 'authorization': 'Bearer $apiToken',
+      };
   static const _magic = 'VOLTRAX_DISCOVER';
 
   static String _normalize(String value) {
@@ -57,7 +68,7 @@ class VoltraApi {
     Map<String, String>? query,
   }) async {
     final response = await http
-        .get(_uri(path, query))
+        .get(_uri(path, query), headers: _headers())
         .timeout(const Duration(seconds: 8));
     return _decode(response);
   }
@@ -70,7 +81,7 @@ class VoltraApi {
     final encoded = jsonEncode(body ?? <String, dynamic>{});
     late http.Response response;
     final uri = _uri(path);
-    final headers = {'content-type': 'application/json'};
+    final headers = _headers(json: true);
     switch (method.toUpperCase()) {
       case 'POST':
         response = await http
@@ -108,8 +119,11 @@ class VoltraApi {
       }
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
+      final fallback = response.statusCode == 401
+          ? 'Authentication required. Check the Voltra access token.'
+          : 'Request failed (${response.statusCode}).';
       throw VoltraException(
-        payload['error']?.toString() ?? 'Request failed (${response.statusCode}).',
+        payload['error']?.toString() ?? fallback,
         response.statusCode,
       );
     }

@@ -219,6 +219,7 @@ class SetupScreen extends StatefulWidget {
 
 class _SetupScreenState extends State<SetupScreen> {
   final manual = TextEditingController();
+  final accessToken = TextEditingController();
   List<ServerCandidate> found = [];
   bool scanning = false;
 
@@ -231,6 +232,7 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   void dispose() {
     manual.dispose();
+    accessToken.dispose();
     super.dispose();
   }
 
@@ -257,7 +259,10 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   Future<void> connect(String url) async {
-    await widget.controller.connect(url);
+    await widget.controller.connect(
+      url,
+      apiToken: accessToken.text.trim(),
+    );
     if (widget.controller.error != null && mounted) {
       _toast(widget.controller.error!, error: true);
     }
@@ -286,7 +291,7 @@ class _SetupScreenState extends State<SetupScreen> {
             ),
             const SizedBox(height: 12),
             const Text(
-              'Voltra controls your smart power strips directly over your LAN. No cloud account required.',
+              'Connect locally over LAN or securely through your MikroTik HTTPS address. No external Voltra cloud account is required.',
               style: TextStyle(
                 color: Color(0xFF8993A7),
                 fontSize: 13,
@@ -328,8 +333,8 @@ class _SetupScreenState extends State<SetupScreen> {
             ),
             const SizedBox(height: 18),
             const _SectionTitle(
-              eyebrow: 'MANUAL',
-              title: 'Connect by IP',
+              eyebrow: 'MANUAL / REMOTE',
+              title: 'Connect by URL',
             ),
             const SizedBox(height: 10),
             TextField(
@@ -338,8 +343,20 @@ class _SetupScreenState extends State<SetupScreen> {
               autocorrect: false,
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.dns_rounded),
-                hintText: '192.168.1.65:8086',
-                labelText: 'Voltra server',
+                hintText: 'https://b8710ce04869.sn.mynetname.net',
+                labelText: 'Voltra server URL',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: accessToken,
+              obscureText: true,
+              enableSuggestions: false,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.key_rounded),
+                labelText: 'Access token (if enabled)',
+                helperText: 'Stored securely on this device',
               ),
             ),
             const SizedBox(height: 12),
@@ -367,9 +384,14 @@ class _SetupScreenState extends State<SetupScreen> {
               text: 'Strip commands stay on your network.',
             ),
             const _InfoRow(
+              icon: Icons.https_rounded,
+              title: 'HTTPS remote access',
+              text: 'Use your MikroTik public HTTPS URL when you are away from the LAN.',
+            ),
+            const _InfoRow(
               icon: Icons.cloud_off_outlined,
-              title: 'Works without Internet',
-              text: 'The local server remains in control when WAN is down.',
+              title: 'Local control remains available',
+              text: 'LAN discovery and local HTTP can still be used when Internet is unavailable.',
             ),
           ],
         ),
@@ -2074,7 +2096,12 @@ class SettingsPage extends StatelessWidget {
                 _SettingsLine(
                   icon: Icons.shield_outlined,
                   label: 'Connection',
-                  value: 'Local LAN',
+                  value: controller.usingHttps ? 'HTTPS / remote ready' : 'Local LAN',
+                ),
+                _SettingsLine(
+                  icon: Icons.key_rounded,
+                  label: 'Access token',
+                  value: controller.apiTokenConfigured ? 'Configured securely' : 'Not configured',
                 ),
               ],
             ),
@@ -2143,9 +2170,9 @@ class SettingsPage extends StatelessWidget {
         const SizedBox(height: 18),
         const _InfoRow(
           icon: Icons.lock_outline_rounded,
-          title: 'No cloud account',
+          title: 'Secure remote access',
           text:
-              'This APK talks directly to your Voltra server and does not require an external login.',
+              'HTTPS protects transport and the optional server access token authenticates protected API requests.',
         ),
       ],
     );

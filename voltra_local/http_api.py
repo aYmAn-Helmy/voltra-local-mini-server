@@ -17,6 +17,7 @@ from . import __version__
 from .dashboard import DASHBOARD
 from .health import health_from_snapshot
 from .provisioner import ProvisioningError, provision_device
+from .security import RemoteAccessSecurity
 from .store import ConfigStore
 from .tcp_server import MTTLServer
 
@@ -70,6 +71,8 @@ class APIHandler(BaseHTTPRequestHandler):
             split = urlsplit(self.path)
             path = split.path
             query = parse_qs(split.query)
+            if self._requires_auth(path) and not self._authorize():
+                return
             if path == "/":
                 self.send_response(302)
                 self.send_header("Location", "/voltra/")
@@ -167,9 +170,12 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
             path = urlsplit(self.path).path
-            if not self.app.allow_write(self.client_address[0]):
+            if self._requires_auth(path) and not self._authorize():
+                return
+            client_ip = self._client_ip()
+            if not self.app.allow_write(client_ip):
                 return self._json(429, {"error": "rate limit exceeded"})
-            self.app.audit_request("POST", path, self.client_address[0])
+            self.app.audit_request("POST", path, client_ip)
 
             match = _REFRESH_RE.match(path)
             if match:
@@ -293,9 +299,12 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_PUT(self):
         try:
             path = urlsplit(self.path).path
-            if not self.app.allow_write(self.client_address[0]):
+            if self._requires_auth(path) and not self._authorize():
+                return
+            client_ip = self._client_ip()
+            if not self.app.allow_write(client_ip):
                 return self._json(429, {"error": "rate limit exceeded"})
-            self.app.audit_request("PUT", path, self.client_address[0])
+            self.app.audit_request("PUT", path, client_ip)
             body = self._read_json()
 
             match = _V_STRIP_PREFS_RE.match(path)
@@ -346,9 +355,12 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         try:
             path = urlsplit(self.path).path
-            if not self.app.allow_write(self.client_address[0]):
+            if self._requires_auth(path) and not self._authorize():
+                return
+            client_ip = self._client_ip()
+            if not self.app.allow_write(client_ip):
                 return self._json(429, {"error": "rate limit exceeded"})
-            self.app.audit_request("DELETE", path, self.client_address[0])
+            self.app.audit_request("DELETE", path, client_ip)
             match = _V_SCHEDULE_RE.match(path)
             if match:
                 if not self.app.automation:
@@ -388,6 +400,26 @@ class APIHandler(BaseHTTPRequestHandler):
             return self._json(401, {"error": str(exc)})
         except Exception as exc:
             return self._json(500, {"error": str(exc)})
+
+    @staticmethod
+    def _requires_auth(path: str) -> bool:
+        return path == "/api" or path.startswith("/api/") or path == "/voltra/api" or path.startswith("/voltra/api/")
+
+    def _authorize(self) -> bool:
+        if self.app.security.authorized(self.headers.get("Authorization")):
+            return True
+        client_ip = self._client_ip()
+        if not self.app.allow_auth_failure(client_ip):
+            self._json(429, {"error": "too many authentication failures", "code": "auth_rate_limited"})
+            return False
+        self._json(401, {"error": "authentication required or token is invalid", "code": "unauthorized"})
+        return False
+
+    def _client_ip(self) -> str:
+        return self.app.security.client_ip(
+            self.client_address[0],
+            self.headers.get("X-Forwarded-For"),
+        )
 
     def _sse(self):
         if not self.app.event_bus:
@@ -449,6 +481,11 @@ class APIHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", self.app.cors_origin)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "SAMEORIGIN")
+        if self.app.security.request_scheme(
+            self.client_address[0],
+            self.headers.get("X-Forwarded-Proto"),
+        ) == "https":
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
         self.send_header("Cache-Control", "public, max-age=31536000, immutable" if immutable else "no-store")
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
@@ -488,6 +525,11 @@ class APIHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "SAMEORIGIN")
+        if self.app.security.request_scheme(
+            self.client_address[0],
+            self.headers.get("X-Forwarded-Proto"),
+        ) == "https":
+            self.send_header("Strict-Transport-Security", "max-age=31536000")
 
     def log_message(self, fmt, *args):
         print("[HTTP] " + (fmt % args))
@@ -508,6 +550,9 @@ class VoltraHTTPServer(ThreadingHTTPServer):
         audit=None,
         event_bus=None,
         rate_limit_per_minute: int = 60,
+        api_token: str = "",
+        trusted_proxy: str = "",
+        public_origin: str = "",
     ):
         self.mttl = mttl
         self.store = store
@@ -516,9 +561,12 @@ class VoltraHTTPServer(ThreadingHTTPServer):
         self.telemetry = telemetry
         self.audit = audit
         self.event_bus = event_bus
+        self.security = RemoteAccessSecurity(api_token, trusted_proxy)
+        self.public_origin = str(public_origin or "").rstrip("/")
         self.rate_limit_per_minute = max(1, min(int(rate_limit_per_minute), 10000))
         self._rate_lock = threading.RLock()
         self._rate_windows: dict[str, deque] = defaultdict(deque)
+        self._auth_windows: dict[str, deque] = defaultdict(deque)
         super().__init__(address, APIHandler)
 
     def allow_write(self, client_ip: str) -> bool:
@@ -528,6 +576,18 @@ class VoltraHTTPServer(ThreadingHTTPServer):
             while window and now - window[0] > 60.0:
                 window.popleft()
             if len(window) >= self.rate_limit_per_minute:
+                return False
+            window.append(now)
+            return True
+
+    def allow_auth_failure(self, client_ip: str) -> bool:
+        now = time.monotonic()
+        limit = min(self.rate_limit_per_minute, 30)
+        with self._rate_lock:
+            window = self._auth_windows[str(client_ip)]
+            while window and now - window[0] > 60.0:
+                window.popleft()
+            if len(window) >= limit:
                 return False
             window.append(now)
             return True
@@ -723,6 +783,9 @@ def start_http(
     audit=None,
     event_bus=None,
     rate_limit_per_minute: int = 60,
+    api_token: str = "",
+    trusted_proxy: str = "",
+    public_origin: str = "",
 ):
     store = store or ConfigStore("data/voltra.json")
     server = VoltraHTTPServer(
@@ -735,6 +798,9 @@ def start_http(
         audit=audit,
         event_bus=event_bus,
         rate_limit_per_minute=rate_limit_per_minute,
+        api_token=api_token,
+        trusted_proxy=trusted_proxy,
+        public_origin=public_origin,
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
