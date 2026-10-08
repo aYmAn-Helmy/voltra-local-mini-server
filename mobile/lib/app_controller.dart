@@ -96,11 +96,14 @@ class AppController extends ChangeNotifier {
     loading = true;
     if (!silent) error = null;
     notifyListeners();
+    VoltraApi? candidate;
     try {
-      final candidate = VoltraApi(url, apiToken: apiToken);
+      candidate = VoltraApi(url, apiToken: apiToken);
       await candidate.health();
       await candidate.overview();
+      final previous = api;
       api = candidate;
+      previous?.close();
       connected = true;
       if (persist) {
         await _secureStorage.write(
@@ -121,6 +124,10 @@ class AppController extends ChangeNotifier {
       await refresh();
       _startPolling();
     } catch (e) {
+      if (identical(api, candidate)) {
+        api = null;
+      }
+      candidate?.close();
       connected = false;
       if (!silent) error = e.toString();
       if (silent) api = null;
@@ -133,7 +140,9 @@ class AppController extends ChangeNotifier {
   Future<void> disconnect() async {
     _poller?.cancel();
     _poller = null;
+    final current = api;
     api = null;
+    current?.close();
     overview = null;
     connected = false;
     await _secureStorage.delete(key: _secureServerKey);
@@ -258,6 +267,8 @@ class AppController extends ChangeNotifier {
   @override
   void dispose() {
     _poller?.cancel();
+    api?.close();
+    api = null;
     super.dispose();
   }
 }
