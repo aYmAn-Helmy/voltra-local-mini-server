@@ -13,10 +13,8 @@ class MobileRemoteAccessSourceTests(unittest.TestCase):
         self.assertIn("version: 1.3.1+5", pubspec)
         self.assertIn("voltra.api.token.secure", controller)
         self.assertIn("FlutterSecureStorage", controller)
-        self.assertIn("cronet_http: ^1.10.0", pubspec)
-        self.assertIn("CronetClient.fromCronetEngine", api)
-        self.assertIn("enableHttp2: false", api)
-        self.assertIn("enableQuic: false", api)
+        self.assertIn("ok_http: ^0.1.0", pubspec)
+        self.assertIn("OkHttpClient()", api)
         self.assertIn("'authorization': 'Bearer $apiToken'", api)
         self.assertNotIn("badCertificateCallback", api)
 
