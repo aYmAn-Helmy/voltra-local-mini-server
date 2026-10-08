@@ -216,13 +216,13 @@ class AppController extends ChangeNotifier {
     await refresh(silent: true);
   }
 
-  Future<void> provision({
+  Future<Map<String, dynamic>> provision({
     required String ssid,
     required String password,
     required String serverIp,
     String deviceIp = '192.168.1.1',
   }) async {
-    await api?.provision(
+    return VoltraApi.provisionDirect(
       ssid: ssid,
       password: password,
       serverIp: serverIp,
