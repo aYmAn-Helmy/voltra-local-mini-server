@@ -47,7 +47,38 @@ else
     printf '\nVOLTRA_API_TOKEN=%s\n' "$TOKEN" >> "$ENV_FILE"
     echo "Added a random API token to existing $ENV_FILE."
   fi
-  echo "Using existing $ENV_FILE."
+  if ! grep -q '^VOLTRA_TRUSTED_PROXY=' "$ENV_FILE"; then
+    printf 'VOLTRA_TRUSTED_PROXY=192.168.1.7/32\n' >> "$ENV_FILE"
+  fi
+  if ! grep -q '^VOLTRA_PUBLIC_ORIGIN=' "$ENV_FILE"; then
+    printf 'VOLTRA_PUBLIC_ORIGIN=https://b8710ce04869.sn.mynetname.net\n' >> "$ENV_FILE"
+  fi
+  if grep -q '^VOLTRA_CORS_ORIGIN=\*docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
+
+HOST_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')"
+if [ -z "$HOST_IP" ]; then
+  HOST_IP="$(hostname -I 2>/dev/null | tr ' ' '\n' | awk '
+    /^127\./ {next}
+    /^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./ {next}
+    {print; exit}
+  ')"
+fi
+echo
+echo "Voltra is starting."
+echo "Dashboard: http://${HOST_IP:-CASAOS-IP}:8086/voltra"
+echo "Device TCP: ${HOST_IP:-CASAOS-IP}:10086"
+echo "Voltra-X Discovery: UDP ${HOST_IP:-CASAOS-IP}:10087"
+echo
+echo "Use the CasaOS LAN IP as server IP when provisioning MTTL-W01 strips."
+echo "Remote API token is stored in $ENV_FILE (mode 600)."
+echo "View it locally with: grep '^VOLTRA_API_TOKEN=' $ENV_FILE"
+echo "Remote API token is stored in $ENV_FILE (mode 600)."
+echo "View it locally with: grep '^VOLTRA_API_TOKEN=' $ENV_FILE"
+ "$ENV_FILE"; then
+    sed -i 's#^VOLTRA_CORS_ORIGIN=\*$#VOLTRA_CORS_ORIGIN=https://b8710ce04869.sn.mynetname.net#' "$ENV_FILE"
+  fi
+  chmod 600 "$ENV_FILE"
+  echo "Using existing $ENV_FILE with secure remote-access migration."
 fi
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
 
