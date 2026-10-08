@@ -10,7 +10,9 @@ This deployment keeps the MTTL-W01 device protocol local while publishing only t
 - Public hostname: `b8710ce04869.sn.mynetname.net`
 - RouterOS: `7.24.5`
 - ACME certificate: `voltra-cloud-le`
-- HTTPS reverse proxy: TCP 443 -> `http://192.168.1.45:8086`
+- MikroTik HTTPS reverse proxy: TCP 443 -> `http://192.168.1.45:8086`
+- Upstream public forward: TCP 8443 -> `192.168.1.7:443`
+- Verified public URL: `https://b8710ce04869.sn.mynetname.net:8443`
 
 Do **not** expose TCP 8086, TCP 10086, or UDP 10087 directly to the Internet.
 
@@ -27,8 +29,8 @@ Store it in the deployment environment, not in Git:
 ```dotenv
 VOLTRA_API_TOKEN=PASTE_GENERATED_TOKEN_HERE
 VOLTRA_TRUSTED_PROXY=192.168.1.7/32
-VOLTRA_PUBLIC_ORIGIN=https://b8710ce04869.sn.mynetname.net
-VOLTRA_CORS_ORIGIN=https://b8710ce04869.sn.mynetname.net
+VOLTRA_PUBLIC_ORIGIN=https://b8710ce04869.sn.mynetname.net:8443
+VOLTRA_CORS_ORIGIN=https://b8710ce04869.sn.mynetname.net:8443
 ```
 
 When `VOLTRA_API_TOKEN` is set, `/health` stays public for monitoring while `/api/*` and `/voltra/api/*` require:
@@ -98,11 +100,13 @@ Verify:
 
 ## Upstream router
 
-The remaining Internet-facing NAT step is on `192.168.1.1`:
+The upstream router at `192.168.1.1` has been verified with this Internet-facing forward:
 
 ```text
-TCP 443 -> 192.168.1.7:443
+TCP 8443 -> 192.168.1.7:443
 ```
+
+External port `443` conflicts with the upstream router's own HTTPS management service, so the current production public endpoint intentionally uses `:8443`.
 
 The observed public address is `156.216.159.2`, matching MikroTik IP Cloud. The observed topology is normal upstream NAT rather than CGNAT.
 
@@ -111,25 +115,27 @@ The observed public address is `156.216.159.2`, matching MikroTik IP Cloud. The 
 From the MikroTik/LAN side:
 
 ```text
-https://b8710ce04869.sn.mynetname.net/health
+https://b8710ce04869.sn.mynetname.net:8443/health
 ```
 
 The expected response is HTTP 200.
 
-After the upstream 443 forward is created, turn Wi-Fi off on a phone and test over mobile data:
+With the upstream 8443 forward enabled, turn Wi-Fi off on a phone and test over mobile data:
 
 ```bash
-curl -fsS https://b8710ce04869.sn.mynetname.net/health
+curl -fsS https://b8710ce04869.sn.mynetname.net:8443/health
 curl -fsS \
   -H "Authorization: Bearer $VOLTRA_API_TOKEN" \
-  https://b8710ce04869.sn.mynetname.net/voltra/api/overview
+  https://b8710ce04869.sn.mynetname.net:8443/voltra/api/overview
 ```
 
 A request to `/voltra/api/overview` without a token should return HTTP 401 when secure mode is enabled.
 
+This deployment was externally verified from independent Internet locations: `/health` returned HTTP 200 through `:8443`, and local TLS validation against the public hostname succeeded.
+
 ## Rollback
 
-1. Remove/disable the upstream TCP 443 forward on `192.168.1.1`.
+1. Remove/disable the upstream TCP 8443 -> `192.168.1.7:443` forward on `192.168.1.1`.
 2. Disable the MikroTik reverse-proxy rule for Voltra.
 3. Remove the WAN TCP 443 allow rule if it is no longer needed.
 4. Keep TCP 10086 and UDP 10087 LAN-only.
