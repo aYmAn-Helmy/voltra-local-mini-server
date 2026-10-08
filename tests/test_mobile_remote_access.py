@@ -13,7 +13,7 @@ class MobileRemoteAccessSourceTests(unittest.TestCase):
         self.assertIn("version: 1.3.1+5", pubspec)
         self.assertIn("voltra.api.token.secure", controller)
         self.assertIn("FlutterSecureStorage", controller)
-                self.assertIn("'authorization': 'Bearer $apiToken'", api)
+        self.assertIn("'authorization': 'Bearer $apiToken'", api)
         self.assertNotIn("badCertificateCallback", api)
 
     def test_https_is_supported_without_tls_bypass(self):
