@@ -7,12 +7,32 @@ import type {
 } from "./types";
 
 const API = "/voltra/api";
+const TOKEN_KEY = "voltra.api.token";
+
+export class AuthError extends Error {
+  constructor(message = "Authentication required") {
+    super(message);
+    this.name = "AuthError";
+  }
+}
+
+export function getApiToken(): string {
+  return window.sessionStorage.getItem(TOKEN_KEY) || "";
+}
+
+export function setApiToken(value: string): void {
+  const token = value.trim();
+  if (token) window.sessionStorage.setItem(TOKEN_KEY, token);
+  else window.sessionStorage.removeItem(TOKEN_KEY);
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers || {});
   if (init?.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
+  const token = getApiToken();
+  if (token) headers.set("authorization", `Bearer ${token}`);
   const response = await fetch(path, { ...init, headers });
   const text = await response.text();
   let payload: unknown = {};
@@ -20,6 +40,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     payload = text ? JSON.parse(text) : {};
   } catch {
     payload = { error: text || response.statusText };
+  }
+  if (response.status === 401) {
+    throw new AuthError("Authentication required or access token is invalid.");
   }
   if (!response.ok) {
     const message =
@@ -159,23 +182,58 @@ export const api = {
     }),
 };
 
-export function subscribeEvents(onEvent: () => void): () => void {
-  const source = new EventSource(`${API}/events`);
-  const handler = () => onEvent();
-  source.onmessage = handler;
-  const eventNames = [
-    "device_state",
-    "device_online",
-    "device_offline",
-    "physical_onoff",
-    "outlet_command",
-    "schedule_created",
-    "schedule_deleted",
-    "queued_command_executed",
-    "rule_fired",
-    "scene_run",
-    "restore_completed",
-  ];
-  eventNames.forEach((name) => source.addEventListener(name, handler));
-  return () => source.close();
+export function subscribeEvents(
+  onEvent: () => void,
+  onUnauthorized?: () => void,
+): () => void {
+  const controller = new AbortController();
+
+  const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+  const run = async () => {
+    while (!controller.signal.aborted) {
+      try {
+        const headers = new Headers();
+        const token = getApiToken();
+        if (token) headers.set("authorization", `Bearer ${token}`);
+
+        const response = await fetch(`${API}/events`, {
+          headers,
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (response.status === 401) {
+          onUnauthorized?.();
+          return;
+        }
+        if (!response.ok || !response.body) {
+          throw new Error(`Event stream failed (${response.status}).`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (!controller.signal.aborted) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let splitAt = buffer.indexOf("\n\n");
+          while (splitAt >= 0) {
+            const packet = buffer.slice(0, splitAt);
+            buffer = buffer.slice(splitAt + 2);
+            if (packet.split("\n").some((line) => line.startsWith("data:"))) {
+              onEvent();
+            }
+            splitAt = buffer.indexOf("\n\n");
+          }
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        await sleep(2000);
+      }
+    }
+  };
+
+  void run();
+  return () => controller.abort();
 }
