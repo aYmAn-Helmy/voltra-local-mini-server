@@ -45,11 +45,13 @@ Configure the server:
 ```dotenv
 VOLTRA_API_TOKEN=PASTE_GENERATED_TOKEN_HERE
 VOLTRA_TRUSTED_PROXY=192.168.1.7/32
-VOLTRA_PUBLIC_ORIGIN=https://b8710ce04869.sn.mynetname.net
-VOLTRA_CORS_ORIGIN=https://b8710ce04869.sn.mynetname.net
+VOLTRA_PUBLIC_ORIGIN=https://b8710ce04869.sn.mynetname.net:8443
+VOLTRA_CORS_ORIGIN=https://b8710ce04869.sn.mynetname.net:8443
 ```
 
 When a token is configured, `/health` remains public and all `/api/*` plus `/voltra/api/*` endpoints require a Bearer token. Forwarded client/protocol headers are trusted only from `VOLTRA_TRUSTED_PROXY`.
+
+The current upstream router cannot forward external TCP 443 because its own HTTPS management occupies that port. The verified public endpoint is therefore `https://b8710ce04869.sn.mynetname.net:8443`, forwarded as WAN `8443` -> MikroTik `192.168.1.7:443`.
 
 Deployment details for the current RouterOS 7.24.5 setup are in `docs/mikrotik-https.md`.
 
