@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cronet_http/cronet_http.dart';
 import 'package:http/http.dart' as http;
 
 class VoltraException implements Exception {
@@ -32,12 +33,17 @@ class ServerCandidate {
 }
 
 class VoltraApi {
-  VoltraApi(String baseUrl, {String? apiToken})
-      : baseUrl = _normalize(baseUrl),
-        apiToken = apiToken?.trim() ?? '';
+  VoltraApi(
+    String baseUrl, {
+    String? apiToken,
+    http.Client? client,
+  })  : baseUrl = _normalize(baseUrl),
+        apiToken = apiToken?.trim() ?? '',
+        _client = client ?? _buildClient();
 
   final String baseUrl;
   final String apiToken;
+  final http.Client _client;
 
   bool get hasApiToken => apiToken.isNotEmpty;
   bool get isHttps => Uri.tryParse(baseUrl)?.scheme.toLowerCase() == 'https';
@@ -47,6 +53,19 @@ class VoltraApi {
         if (apiToken.isNotEmpty) 'authorization': 'Bearer $apiToken',
       };
   static const _magic = 'VOLTRAX_DISCOVER';
+
+  static http.Client _buildClient() {
+    if (Platform.isAndroid) {
+      final engine = CronetEngine.build(
+        cacheMode: CacheMode.disabled,
+        enableHttp2: false,
+        enableQuic: false,
+        userAgent: 'Voltra-Mobile/1.3.1',
+      );
+      return CronetClient.fromCronetEngine(engine, closeEngine: true);
+    }
+    return http.Client();
+  }
 
   static String _normalize(String value) {
     var result = value.trim();
@@ -67,7 +86,7 @@ class VoltraApi {
     String path, {
     Map<String, String>? query,
   }) async {
-    final response = await http
+    final response = await _client
         .get(_uri(path, query), headers: _headers())
         .timeout(const Duration(seconds: 8));
     return _decode(response);
@@ -84,17 +103,17 @@ class VoltraApi {
     final headers = _headers(json: true);
     switch (method.toUpperCase()) {
       case 'POST':
-        response = await http
+        response = await _client
             .post(uri, headers: headers, body: encoded)
             .timeout(const Duration(seconds: 10));
         break;
       case 'PUT':
-        response = await http
+        response = await _client
             .put(uri, headers: headers, body: encoded)
             .timeout(const Duration(seconds: 10));
         break;
       case 'DELETE':
-        response = await http
+        response = await _client
             .delete(uri, headers: headers, body: encoded)
             .timeout(const Duration(seconds: 10));
         break;
@@ -223,6 +242,8 @@ class VoltraApi {
           if (outlet != null) 'outlet': outlet.toString(),
         },
       );
+
+  void close() => _client.close();
 
   static Future<List<ServerCandidate>> discover({
     Duration timeout = const Duration(seconds: 2),
