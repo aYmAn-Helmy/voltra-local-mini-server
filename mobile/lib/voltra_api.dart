@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:ok_http/ok_http.dart';
 import 'package:http/http.dart' as http;
+
+import 'android_native_http_client.dart';
 
 class VoltraException implements Exception {
   final String message;
@@ -56,7 +57,7 @@ class VoltraApi {
 
   static http.Client _buildClient() {
     if (Platform.isAndroid) {
-      return OkHttpClient();
+      return AndroidNativeHttpClient();
     }
     return http.Client();
   }
