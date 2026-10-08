@@ -11,9 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 
 
-class ProfessionalFrontendV020Tests(unittest.TestCase):
+class ProfessionalFrontendV021Tests(unittest.TestCase):
     def test_version(self):
-        self.assertEqual(__version__, "0.20.0")
+        self.assertEqual(__version__, "0.21.0")
 
     def test_react_frontend_sources_exist(self):
         for path in (
