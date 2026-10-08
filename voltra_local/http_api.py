@@ -408,6 +408,10 @@ class APIHandler(BaseHTTPRequestHandler):
     def _authorize(self) -> bool:
         if self.app.security.authorized(self.headers.get("Authorization")):
             return True
+        client_ip = self._client_ip()
+        if not self.app.allow_auth_failure(client_ip):
+            self._json(429, {"error": "too many authentication failures", "code": "auth_rate_limited"})
+            return False
         self._json(401, {"error": "authentication required or token is invalid", "code": "unauthorized"})
         return False
 
@@ -562,6 +566,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
         self.rate_limit_per_minute = max(1, min(int(rate_limit_per_minute), 10000))
         self._rate_lock = threading.RLock()
         self._rate_windows: dict[str, deque] = defaultdict(deque)
+        self._auth_windows: dict[str, deque] = defaultdict(deque)
         super().__init__(address, APIHandler)
 
     def allow_write(self, client_ip: str) -> bool:
@@ -571,6 +576,18 @@ class VoltraHTTPServer(ThreadingHTTPServer):
             while window and now - window[0] > 60.0:
                 window.popleft()
             if len(window) >= self.rate_limit_per_minute:
+                return False
+            window.append(now)
+            return True
+
+    def allow_auth_failure(self, client_ip: str) -> bool:
+        now = time.monotonic()
+        limit = min(self.rate_limit_per_minute, 30)
+        with self._rate_lock:
+            window = self._auth_windows[str(client_ip)]
+            while window and now - window[0] > 60.0:
+                window.popleft()
+            if len(window) >= limit:
                 return False
             window.append(now)
             return True
