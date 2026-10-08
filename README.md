@@ -4,7 +4,7 @@ Local-first server for LG U+ / TONLY MTTL-W01 smart power strips.
 
 ## Current release
 
-**v0.20.0**
+**v0.21.0**
 
 Key capabilities:
 
@@ -20,7 +20,7 @@ Key capabilities:
 - Backup/restore for Voltra configuration and automation
 - Audit log and write rate limiting
 - Separate TCP and HTTP bind addresses
-- Tokenless standalone LAN dashboard/API
+- Optional bearer-token authentication for safe HTTPS reverse-proxy exposure
 - React + TypeScript + Vite professional UI served directly from `/voltra/`
 - Mobile-first smart-home dashboard with total-power hero, quick actions, search and 2x2 outlet tiles
 - Dedicated Consumption, Automation, Rooms/Mapping, Add/Provision and Settings views
@@ -30,9 +30,32 @@ Key capabilities:
 - Server-side Rooms, Favorites, ordering, Scenes and energy/alert settings
 - Voltra-X LAN discovery on UDP 10087
 
+## Secure remote HTTPS access
+
+Voltra can remain local-first while the HTTP dashboard/API is published through a trusted HTTPS reverse proxy. The MTTL-W01 device TCP port `10086` and discovery UDP port `10087` must remain LAN-only.
+
+Generate a token:
+
+```bash
+python scripts/generate_api_token.py
+```
+
+Configure the server:
+
+```dotenv
+VOLTRA_API_TOKEN=PASTE_GENERATED_TOKEN_HERE
+VOLTRA_TRUSTED_PROXY=192.168.1.7/32
+VOLTRA_PUBLIC_ORIGIN=https://b8710ce04869.sn.mynetname.net
+VOLTRA_CORS_ORIGIN=https://b8710ce04869.sn.mynetname.net
+```
+
+When a token is configured, `/health` remains public and all `/api/*` plus `/voltra/api/*` endpoints require a Bearer token. Forwarded client/protocol headers are trusted only from `VOLTRA_TRUSTED_PROXY`.
+
+Deployment details for the current RouterOS 7.24.5 setup are in `docs/mikrotik-https.md`.
+
 ## Professional web UI
 
-The v0.20 dashboard is a separate React/TypeScript frontend. Docker builds it in a
+The v0.21 dashboard is a separate React/TypeScript frontend. Docker builds it in a
 Node stage and copies the static Vite output into the final Python image, so deployment
 still uses one Voltra container.
 
@@ -222,6 +245,9 @@ Important environment variables:
 - `VOLTRA_DISCOVERY_PORT`
 - `VOLTRA_TIMEZONE`
 - `VOLTRA_CORS_ORIGIN`
+- `VOLTRA_API_TOKEN`
+- `VOLTRA_TRUSTED_PROXY`
+- `VOLTRA_PUBLIC_ORIGIN`
 - `VOLTRA_POLL_INTERVAL`
 - `VOLTRA_DIAGNOSTICS_INTERVAL`
 - `VOLTRA_TELEMETRY_INTERVAL`
