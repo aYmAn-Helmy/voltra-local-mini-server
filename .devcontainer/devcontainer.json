@@ -1,0 +1,23 @@
+{
+  "name": "Voltra Dashboard V2",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [5173, 8086],
+  "portsAttributes": {
+    "5173": { "label": "Voltra Vite development", "onAutoForward": "notify" },
+    "8086": { "label": "Voltra demo API/dashboard", "onAutoForward": "notify" }
+  },
+  "postCreateCommand": "cd frontend && npm install --no-audit --no-fund",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-python.python"
+      ]
+    }
+  }
+}
