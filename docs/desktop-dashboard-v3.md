@@ -6,7 +6,7 @@ This branch adds a **desktop-only experience** to the existing Voltra web interf
 
 - **Below 1120px:** the original mobile/tablet web UI, including profile, power hero, bottom navigation, outlet tiles and floating Add strip action.
 - **1120px and above:** new desktop sidebar, page toolbar, live power summary, KPIs, shortcuts, device search/filter controls and a compact multi-column device grid.
-- Both layouts share the same `App` state, API, login, search state and command handlers. Hidden layouts are excluded from the viewport via `display:none`. Device controls are not duplicated on-screen.
+- Both layouts share the same `App` state, API, login, search state and command handlers. A responsive media-query listener mounts only the matching layout, and switches layouts as the viewport changes. Hidden device controls are not duplicated in the DOM.
 - Backend, discovery protocol and the legacy dashboard are not changed.
 
 ## Work directly on GitHub
