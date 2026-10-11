@@ -67,3 +67,24 @@ test("desktop has independent navigation, power summary and compact device grid"
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
+
+test("Arabic interface toggles direction without changing the active layout", async ({ page }, testInfo) => {
+  await page.goto("/voltra/");
+  await page.getByRole("button", { name: "Change language" }).click();
+  await expect(page.locator(".app-shell")).toHaveAttribute("lang", "ar");
+  await expect(page.locator(".app-shell")).toHaveAttribute("dir", "rtl");
+  await expect(page.getByRole("heading", { name: "أجهزتي" })).toBeVisible();
+  await expect(page.getByPlaceholder("ابحث عن مشترك أو مخرج")).toBeVisible();
+  if (testInfo.project.name === "desktop") {
+    await expect(page.locator(".dw-sidebar")).toBeVisible();
+  } else {
+    await expect(page.locator(".bottom-nav")).toBeVisible();
+  }
+
+  await page.reload();
+  await expect(page.locator(".app-shell")).toHaveAttribute("dir", "rtl");
+  await page.getByRole("button", { name: "تغيير اللغة" }).click();
+  await expect(page.locator(".app-shell")).toHaveAttribute("dir", "ltr");
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
+});
