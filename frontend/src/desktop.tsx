@@ -174,6 +174,7 @@ export function DesktopDashboard({
       .includes(normalized);
   });
   const hasAttention = strips.some((strip) => !strip.online || !strip.enabled || strip.health?.status === "critical");
+  const searching = Boolean(normalized) || filter !== "all";
 
   return (
     <div className="dw-dashboard">
@@ -185,7 +186,7 @@ export function DesktopDashboard({
         </div>
         <span className={"dw-health-label " + (hasAttention ? "attention" : "")}>
           {hasAttention ? <WifiOff size={15} /> : <ShieldCheck size={15} />}
-          {hasAttention ? "Devices need attention" : "All managed devices connected"}
+          {strips.length === 0 ? "No devices configured" : hasAttention ? "Devices need attention" : "All managed devices connected"}
         </span>
       </section>
 
@@ -298,9 +299,9 @@ export function DesktopDashboard({
             <div className="dw-empty">
               <EmptyState
                 icon={Search}
-                title={strips.length ? "No matching devices" : "No strips yet"}
-                description={strips.length ? "Try another search or connection filter." : "Add your first MTTL-W01 strip to start monitoring."}
-                action={!strips.length ? (
+                title={searching ? "No matching devices" : strips.length ? "No matching devices" : "No strips yet"}
+                description={searching || strips.length ? "Try another search or connection filter." : "Add your first MTTL-W01 strip to start monitoring."}
+                action={!strips.length && !searching ? (
                   <button className="dw-add-button" onClick={() => onNavigate("add")}>
                     <CirclePlus size={17} /> Add strip
                   </button>
