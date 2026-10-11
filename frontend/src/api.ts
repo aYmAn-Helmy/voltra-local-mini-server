@@ -3,6 +3,7 @@ import type {
   EnergyHistory,
   EnergySummary,
   Overview,
+  Outlet,
   Settings,
 } from "./types";
 
