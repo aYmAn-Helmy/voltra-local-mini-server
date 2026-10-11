@@ -584,3 +584,21 @@ select { appearance: auto; }
   .fab { bottom: 26px; right: max(24px, calc((100vw - 980px) / 2 + 24px)); }
   .toast { bottom: 26px; }
 }
+
+/* V2 language selection is available on the unchanged mobile/tablet shell. */
+.language-switch {
+  height: 42px;
+  min-width: 51px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.language-switch:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.app-shell[dir="rtl"] .title-row .icon-button svg { transform: scaleX(-1); }
+.app-shell[dir="rtl"] .strip-menu { margin-left: 0; margin-right: auto; }
+.app-shell[dir="rtl"] .diagnostic-row { direction: ltr; justify-content: flex-end; }
