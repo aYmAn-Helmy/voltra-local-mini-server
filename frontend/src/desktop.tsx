@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { EmptyState, SearchBar, StripCard, viewMeta } from "./ui";
+import { t, useLocale } from "./i18n";
 import type { AutomationSnapshot, Overview, Strip, ViewName } from "./types";
 
 type WorkspaceProps = {
@@ -40,6 +41,7 @@ export function DesktopSidebar({
   onNavigate,
   overview,
 }: WorkspaceProps & { overview: Overview }) {
+  const locale = useLocale();
   const online = overview.summary.online_strips;
   const strips = overview.strips.filter(
     (strip) => strip.managed && (strip.state === "active" || strip.state === "disabled"),
@@ -63,7 +65,7 @@ export function DesktopSidebar({
             onClick={() => onNavigate(target)}
           >
             <Icon size={19} strokeWidth={1.8} />
-            <span>{label}</span>
+            <span>{t(locale, label)}</span>
             {view === target && <span className="dw-nav-active-indicator" aria-hidden="true" />}
           </button>
         ))}
@@ -72,10 +74,10 @@ export function DesktopSidebar({
       <div className="dw-nav-overline dw-nav-overline-second">MANAGEMENT</div>
       <nav className="dw-primary-nav" aria-label="Device management">
         <button type="button" className={view === "add" ? "active" : ""} onClick={() => onNavigate("add")} aria-current={view === "add" ? "page" : undefined}>
-          <CirclePlus size={19} strokeWidth={1.8} /><span>Add strip</span>
+          <CirclePlus size={19} strokeWidth={1.8} /><span>{t(locale, "Add strip")}</span>
         </button>
         <button type="button" className={view === "settings" ? "active" : ""} onClick={() => onNavigate("settings")} aria-current={view === "settings" ? "page" : undefined}>
-          <Settings size={19} strokeWidth={1.8} /><span>Settings</span>
+          <Settings size={19} strokeWidth={1.8} /><span>{t(locale, "Settings")}</span>
         </button>
       </nav>
 
@@ -98,22 +100,26 @@ export function DesktopHeader({
   view,
   onRefresh,
   onSettings,
+  onLanguageToggle,
   busy,
 }: {
   view: ViewName;
   onRefresh: () => void;
   onSettings: () => void;
+  onLanguageToggle: () => void;
   busy: boolean;
 }) {
+  const locale = useLocale();
   return (
     <header className="dw-topbar">
       <div>
-        <div className="dw-breadcrumb"><span>WORKSPACE</span><span className="dw-breadcrumb-slash">/</span><strong>{viewMeta[view].title}</strong></div>
-        <h1>{view === "dashboard" ? "My strips" : viewMeta[view].title}</h1>
-        <p>{view === "dashboard" ? "Your smart home, connected and in control." : "Manage your Voltra local smart power system."}</p>
+        <div className="dw-breadcrumb"><span>WORKSPACE</span><span className="dw-breadcrumb-slash">/</span><strong>{t(locale, viewMeta[view].title)}</strong></div>
+        <h1>{t(locale, view === "dashboard" ? "My strips" : viewMeta[view].title)}</h1>
+        <p>{t(locale, view === "dashboard" ? "Your smart home, connected and in control." : "Manage your Voltra local smart power system.")}</p>
       </div>
       <div className="dw-topbar-actions">
         <span className="dw-local-pill"><span /> LOCAL SYSTEM</span>
+        <button className="dw-toolbar-btn dw-language" onClick={onLanguageToggle} aria-label={t(locale, "Change language")} title={t(locale, "Change language")}>{locale === "en" ? "عربي" : "EN"}</button>
         <button className="dw-toolbar-btn" onClick={onRefresh} aria-label="Refresh dashboard" title="Refresh" disabled={busy}>
           <RefreshCw size={19} className={busy ? "spin" : ""} />
         </button>
@@ -151,6 +157,7 @@ export function DesktopDashboard({
   onSetAll,
   onStripSettings,
 }: DashboardProps) {
+  const locale = useLocale();
   const [filter, setFilter] = useState<DeviceFilter>("all");
   const strips = overview.strips.filter(
     (strip) => strip.managed && (strip.state === "active" || strip.state === "disabled"),
@@ -181,19 +188,19 @@ export function DesktopDashboard({
       <section className="dw-welcome" aria-label="Dashboard introduction">
         <div>
           <span className="dw-eyebrow"><span className="dw-eyebrow-dot" /> REAL-TIME OVERVIEW</span>
-          <h2>Power at a glance<span className="dw-title-period">.</span></h2>
-          <p>Monitor energy, manage outlets, and keep every room running smoothly.</p>
+          <h2>{t(locale, "Power at a glance")}<span className="dw-title-period">.</span></h2>
+          <p>{t(locale, "Monitor energy, manage outlets, and keep every room running smoothly.")}</p>
         </div>
         <span className={"dw-health-label " + (hasAttention ? "attention" : "")}>
           {hasAttention ? <WifiOff size={15} /> : <ShieldCheck size={15} />}
-          {strips.length === 0 ? "No devices configured" : hasAttention ? "Devices need attention" : "All managed devices connected"}
+          {t(locale, strips.length === 0 ? "No devices configured" : hasAttention ? "Devices need attention" : "All managed devices connected")}
         </span>
       </section>
 
       <section className="dw-overview" aria-label="Power and connectivity overview">
         <div className="dw-hero">
           <div className="dw-hero-top">
-            <span>LIVE POWER CONSUMPTION</span>
+            <span>{t(locale, "LIVE POWER CONSUMPTION")}</span>
             <span className="dw-hero-live"><span /> LIVE</span>
           </div>
           <div className="dw-hero-inner">
@@ -202,7 +209,7 @@ export function DesktopDashboard({
                 <strong>{Number(overview.summary.total_power_w || 0).toFixed(1)}</strong>
                 <span>W</span>
               </div>
-              <span className="dw-hero-caption">Total power right now</span>
+              <span className="dw-hero-caption">{t(locale, "Total power right now")}</span>
             </div>
             <div className="dw-energy-symbol" aria-hidden="true"><Zap size={51} strokeWidth={1.35} /></div>
           </div>
@@ -215,27 +222,27 @@ export function DesktopDashboard({
         <div className="dw-stat-grid">
           <div className="dw-stat-card">
             <span className="dw-stat-icon green"><Wifi size={20} /></span>
-            <span className="dw-stat-label">Online strips</span>
+            <span className="dw-stat-label">{t(locale, "Online strips")}</span>
             <div><strong>{overview.summary.online_strips}</strong><span>/ {strips.length}</span></div>
-            <small>Connected to Voltra</small>
+            <small>{t(locale, "Connected to Voltra")}</small>
           </div>
           <div className="dw-stat-card">
             <span className="dw-stat-icon blue"><PlugZap size={20} /></span>
-            <span className="dw-stat-label">Active outlets</span>
+            <span className="dw-stat-label">{t(locale, "Active outlets")}</span>
             <div><strong>{activeOutlets}</strong><span>/ {totalOutlets}</span></div>
-            <small>Currently powered on</small>
+            <small>{t(locale, "Currently powered on")}</small>
           </div>
           <div className="dw-stat-card">
             <span className="dw-stat-icon amber"><CalendarClock size={20} /></span>
-            <span className="dw-stat-label">Active schedules</span>
+            <span className="dw-stat-label">{t(locale, "Active schedules")}</span>
             <div><strong>{schedules}</strong></div>
-            <small>Automation plans enabled</small>
+            <small>{t(locale, "Automation plans enabled")}</small>
           </div>
         </div>
       </section>
 
       <section className="dw-shortcuts" aria-label="Quick actions">
-        <div className="dw-mini-heading"><span>QUICK ACCESS</span><small>Everything you need, one click away</small></div>
+        <div className="dw-mini-heading"><span>{t(locale, "QUICK ACCESS")}</span><small>{t(locale, "Everything you need, one click away")}</small></div>
         <div className="dw-shortcut-grid">
           {[
             { view: "energy" as ViewName, label: "Consumption", hint: "Power insights", icon: BarChart3 },
@@ -245,7 +252,7 @@ export function DesktopDashboard({
           ].map(({ view, label, hint, icon: Icon }) => (
             <button className="dw-shortcut" key={label} onClick={() => onNavigate(view)}>
               <span className="dw-shortcut-icon"><Icon size={21} strokeWidth={1.8} /></span>
-              <span className="dw-shortcut-text"><strong>{label}</strong><small>{hint}</small></span>
+              <span className="dw-shortcut-text"><strong>{t(locale, label)}</strong><small>{t(locale, hint)}</small></span>
               <ArrowUpRight size={16} className="dw-shortcut-arrow" />
             </button>
           ))}
@@ -255,9 +262,9 @@ export function DesktopDashboard({
       <section className="dw-devices" aria-label="Connected strips">
         <div className="dw-device-title-row">
           <div>
-            <span className="dw-eyebrow">DEVICE MANAGEMENT</span>
+            <span className="dw-eyebrow">{t(locale, "DEVICE MANAGEMENT")}</span>
             <h2>Your strips <span className="dw-device-count">{strips.length}</span></h2>
-            <p>Control and monitor all your connected power strips.</p>
+            <p>{t(locale, "Control and monitor all your connected power strips.")}</p>
           </div>
           <button className="dw-add-button" onClick={() => onNavigate("add")}>
             <CirclePlus size={19} /> Add strip
@@ -274,12 +281,12 @@ export function DesktopDashboard({
                 className={filter === option ? "selected" : ""}
                 onClick={() => setFilter(option)}
               >
-                {option === "all" ? "All devices" : option === "online" ? "Online" : "Offline"}
+                {t(locale, option === "all" ? "All devices" : option === "online" ? "Online" : "Offline")}
               </button>
             ))}
           </div>
           <div className="dw-search"><SearchBar value={search} onChange={onSearch} /></div>
-          <span className="dw-result-count">{matches.length} showing</span>
+          <span className="dw-result-count">{matches.length} {t(locale, "showing")}</span>
         </div>
 
         <div className="dw-device-grid">
@@ -299,8 +306,8 @@ export function DesktopDashboard({
             <div className="dw-empty">
               <EmptyState
                 icon={Search}
-                title={searching ? "No matching devices" : strips.length ? "No matching devices" : "No strips yet"}
-                description={searching || strips.length ? "Try another search or connection filter." : "Add your first MTTL-W01 strip to start monitoring."}
+                title={t(locale, searching || strips.length ? "No matching devices" : "No strips yet")}
+                description={t(locale, searching || strips.length ? "Try another search or connection filter." : "Add your first MTTL-W01 strip to start monitoring.")}
                 action={!strips.length && !searching ? (
                   <button className="dw-add-button" onClick={() => onNavigate("add")}>
                     <CirclePlus size={17} /> Add strip
