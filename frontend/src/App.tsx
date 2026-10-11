@@ -4,9 +4,26 @@ import { CirclePlus, LoaderCircle, Star, Trash2 } from "lucide-react";
 import { AuthError, api, getApiToken, setApiToken, subscribeEvents } from "./api";
 import { AddStripView, AutomationView, DashboardView, EnergyView, RoomsView, SettingsView } from "./views";
 import { AppHeader, BottomNav, ConfirmDialog, Modal } from "./ui";
+import { DesktopDashboard, DesktopHeader, DesktopSidebar } from "./desktop";
 import type { AutomationSnapshot, Overview, Strip, ViewName } from "./types";
 
 const emptyAutomation: AutomationSnapshot = { schedules: {}, rules: {}, queue: [] };
+
+// Mount only one responsive workspace, so hidden device controls are never duplicated.
+function useDesktopLayout(): boolean {
+  const [desktop, setDesktop] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(min-width: 1120px)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1120px)");
+    const sync = () => setDesktop(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+  return desktop;
+}
+
 
 type ConfirmState = {
   title: string;
@@ -32,6 +49,7 @@ function updateOutletLocal(overview: Overview, mac: string, outlet: number, on: 
 
 export default function App() {
   const [view, setView] = useState<ViewName>("dashboard");
+  const desktop = useDesktopLayout();
   const [overview, setOverview] = useState<Overview | null>(null);
   const [automation, setAutomation] = useState<AutomationSnapshot>(emptyAutomation);
   const [search, setSearch] = useState("");
@@ -280,18 +298,19 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {desktop && <DesktopSidebar view={view} onNavigate={setView} overview={overview} />}
       <div className="app-frame">
-        <AppHeader
+        {desktop ? <DesktopHeader view={view} onRefresh={refreshAll} onSettings={() => setView("settings")} busy={loading} /> : <AppHeader
           view={view}
           onBack={() => setView("dashboard")}
           onRefresh={refreshAll}
           onSettings={() => setView("settings")}
           busy={loading}
-        />
+        />}
 
         <main className="main-content">
-          {view === "dashboard" && (
-            <DashboardView
+          {view === "dashboard" && !desktop && (
+            <div className="mobile-dashboard"><DashboardView
               overview={overview}
               automation={automation}
               search={search}
@@ -301,7 +320,20 @@ export default function App() {
               onToggleOutlet={setOutlet}
               onSetAll={requestSetAll}
               onStripSettings={setEditingStrip}
-            />
+            /></div>
+          )}
+          {view === "dashboard" && desktop && (
+            <div className="desktop-dashboard"><DesktopDashboard
+              overview={overview}
+              automation={automation}
+              search={search}
+              onSearch={setSearch}
+              busyChannels={busyChannels}
+              onNavigate={setView}
+              onToggleOutlet={setOutlet}
+              onSetAll={requestSetAll}
+              onStripSettings={setEditingStrip}
+            /></div>
           )}
           {view === "energy" && <EnergyView overview={overview} notify={notify} />}
           {view === "automation" && (
@@ -317,7 +349,7 @@ export default function App() {
           {view === "settings" && <SettingsView overview={overview} refresh={refreshOverview} notify={notify} />}
         </main>
 
-        <BottomNav view={view} onChange={setView} />
+        {!desktop && <BottomNav view={view} onChange={setView} />}
       </div>
 
       <Modal
