@@ -487,7 +487,7 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomePage(controller: widget.controller),
+      HomePage(controller: widget.controller, onOpenSettings: () => setState(() => index = 3)),
       EnergyPage(controller: widget.controller),
       AutomationPage(controller: widget.controller),
       SettingsPage(
@@ -590,7 +590,8 @@ class _MainShellState extends State<MainShell> {
 
 class HomePage extends StatefulWidget {
   final AppController controller;
-  const HomePage({super.key, required this.controller});
+  final VoidCallback onOpenSettings;
+  const HomePage({super.key, required this.controller, required this.onOpenSettings});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -635,7 +636,7 @@ class _HomePageState extends State<HomePage> {
         children: [
           Card(
             child: InkWell(
-              onTap: () {},
+              onTap: widget.onOpenSettings,
               borderRadius: BorderRadius.circular(22),
               child: Padding(
                 padding: const EdgeInsets.all(13),
