@@ -49,10 +49,13 @@ class DeviceSession:
         self.command_failures = 0
         self.last_command_latency_ms: float | None = None
         self.last_command_confirmed: bool | None = None
+        self.last_control_ack_ms: float | None = None
+        self.last_control_total_ms: float | None = None
+        self._control_pending = threading.Event()
         self.last_command_at: str | None = None
         self.closed = threading.Event()
         self._send_lock = threading.Lock()
-        self._command_lock = threading.Lock()
+        self._command_lock = threading.RLock()
         self._pending_lock = threading.Lock()
         self._pending_predicate: Callable[[str], bool] | None = None
         self._pending_event: threading.Event | None = None
@@ -108,58 +111,62 @@ class DeviceSession:
                 "command_failures": self.command_failures,
                 "last_command_latency_ms": self.last_command_latency_ms,
                 "last_command_confirmed": self.last_command_confirmed,
+                "last_control_ack_ms": self.last_control_ack_ms,
+                "last_control_total_ms": self.last_control_total_ms,
                 "last_command_at": self.last_command_at,
             },
             "outlets": [self.outlets[idx].to_dict() for idx in sorted(self.outlets)],
         }
 
     def set_outlet(self, outlet: int, on: bool) -> dict:
+        # Prioritize user commands over low-priority background telemetry polls.
         command = format_onoff(outlet, on)
-        last_error: Exception | None = None
-        for attempt in range(1, self.server.command_attempts + 1):
-            try:
-                self.request(command, lambda frame: frame.strip() == command)
-                last_error = None
-                break
-            except (TimeoutError, RuntimeError, OSError) as exc:
-                last_error = exc
-                if attempt < self.server.command_attempts:
-                    time.sleep(0.12)
-        if last_error is not None:
-            raise last_error
-
-        confirmed = False
-        if self.server.confirm_delay > 0:
-            time.sleep(self.server.confirm_delay)
+        started = time.monotonic()
+        self._control_pending.set()
         try:
-            self.query_info()
-            current = self.outlets.get(outlet)
-            confirmed = bool(current and current.relay == on)
-        except Exception:
-            current = self.outlets.get(outlet)
-            if current:
-                current.relay = on
+            last_error: Exception | None = None
+            for attempt in range(1, self.server.command_attempts + 1):
+                try:
+                    self.request(command, lambda frame: frame.strip() == command)
+                    last_error = None
+                    self.last_control_ack_ms = round((time.monotonic() - started) * 1000, 2)
+                    break
+                except (TimeoutError, RuntimeError, OSError) as exc:
+                    last_error = exc
+                    if attempt < self.server.command_attempts:
+                        time.sleep(0.12)
+            if last_error is not None:
+                raise last_error
 
-        self.last_command_confirmed = confirmed
-        self.last_command_at = utc_now()
-        if getattr(self.server, "audit", None):
-            self.server.audit.append(
-                "device",
-                "set_outlet",
-                mac=self.mac,
-                outlet=outlet,
-                on=on,
-                confirmed=confirmed,
-            )
-        if getattr(self.server, "event_bus", None):
-            self.server.event_bus.publish(
-                "outlet_command",
-                mac=self.mac,
-                outlet=outlet,
-                on=on,
-                confirmed=confirmed,
-            )
-        return self.snapshot()
+            confirmed = False
+            if self.server.confirm_delay > 0:
+                time.sleep(self.server.confirm_delay)
+            try:
+                self.query_info()
+                current = self.outlets.get(outlet)
+                confirmed = bool(current and current.relay == on)
+            except Exception:
+                # Do not pretend a missing GETINFO is a verified relay state.
+                confirmed = False
+
+            self.last_command_confirmed = confirmed
+            self.last_command_at = utc_now()
+            self.last_control_total_ms = round((time.monotonic() - started) * 1000, 2)
+            if getattr(self.server, "audit", None):
+                self.server.audit.append(
+                    "device", "set_outlet", mac=self.mac, outlet=outlet,
+                    on=on, confirmed=confirmed,
+                    ack_ms=self.last_control_ack_ms,
+                    total_ms=self.last_control_total_ms,
+                )
+            if getattr(self.server, "event_bus", None):
+                self.server.event_bus.publish(
+                    "outlet_command", mac=self.mac, outlet=outlet,
+                    on=on, confirmed=confirmed,
+                )
+            return self.snapshot()
+        finally:
+            self._control_pending.clear()
 
     def query_info(self) -> dict:
         self.request(GETINFO_REQUEST, lambda frame: parse_getinfo(frame) is not None)
@@ -456,18 +463,27 @@ class MTTLServer:
             with self._lock:
                 sessions = list(self._sessions.values())
             for session in sessions:
-                if session.closed.is_set():
+                if session.closed.is_set() or session._control_pending.is_set():
+                    continue
+                # Polling must never queue ahead of outlet commands or other reads.
+                if not session._command_lock.acquire(blocking=False):
                     continue
                 try:
-                    session.query_info()
-                except Exception as exc:
-                    print(f"[TCP] poll failed for {session.mac}: {exc}")
-                    continue
-                if (
-                    self.diagnostics_interval > 0
-                    and time.monotonic() - session._last_diagnostics_monotonic >= self.diagnostics_interval
-                ):
+                    if session._control_pending.is_set():
+                        continue
                     try:
-                        session.query_diagnostics()
+                        session.query_info()
                     except Exception as exc:
-                        print(f"[TCP] diagnostics failed for {session.mac}: {exc}")
+                        print(f"[TCP] poll failed for {session.mac}: {exc}")
+                        continue
+                    if (
+                        self.diagnostics_interval > 0
+                        and not session._control_pending.is_set()
+                        and time.monotonic() - session._last_diagnostics_monotonic >= self.diagnostics_interval
+                    ):
+                        try:
+                            session.query_diagnostics()
+                        except Exception as exc:
+                            print(f"[TCP] diagnostics failed for {session.mac}: {exc}")
+                finally:
+                    session._command_lock.release()

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import type { EnergyPoint, Mapping, Outlet, Ps4Device, Strip, ViewName } from "./types";
+import { t, useLocale } from "./i18n";
 
 export const viewMeta: Record<ViewName, { title: string; icon: typeof Home }> = {
   dashboard: { title: "My strips", icon: Home },
@@ -38,14 +39,17 @@ export function AppHeader({
   onBack,
   onRefresh,
   onSettings,
+  onLanguageToggle,
   busy,
 }: {
   view: ViewName;
   onBack: () => void;
   onRefresh: () => void;
   onSettings: () => void;
+  onLanguageToggle: () => void;
   busy: boolean;
 }) {
+  const locale = useLocale();
   const home = view === "dashboard";
   return (
     <header className="app-header">
@@ -53,18 +57,21 @@ export function AppHeader({
         <div className="live-label"><span /> VOLTRA LIVE</div>
         <div className="title-row">
           {!home && (
-            <button className="icon-button subtle" onClick={onBack} aria-label="Back to My strips">
+            <button className="icon-button subtle" onClick={onBack} aria-label={t(locale, "Back to My strips")}>
               <ChevronLeft size={20} />
             </button>
           )}
-          <h1>{viewMeta[view].title}</h1>
+          <h1>{t(locale, viewMeta[view].title)}</h1>
         </div>
       </div>
       <div className="header-actions">
-        <button className="icon-button" onClick={onRefresh} aria-label="Refresh" disabled={busy}>
+        <button className="language-switch" onClick={onLanguageToggle} aria-label={t(locale, "Change language")} title={t(locale, "Change language")}>
+          {locale === "en" ? "عربي" : "EN"}
+        </button>
+        <button className="icon-button" onClick={onRefresh} aria-label={t(locale, "Refresh")} disabled={busy}>
           <RefreshCw size={18} className={busy ? "spin" : ""} />
         </button>
-        <button className="icon-button" onClick={onSettings} aria-label="Settings">
+        <button className="icon-button" onClick={onSettings} aria-label={t(locale, "Settings")}>
           <Settings size={18} />
         </button>
       </div>
@@ -79,9 +86,10 @@ export function BottomNav({
   view: ViewName;
   onChange: (view: ViewName) => void;
 }) {
+  const locale = useLocale();
   const entries: ViewName[] = ["dashboard", "energy", "automation", "rooms"];
   return (
-    <nav className="bottom-nav" aria-label="Primary">
+    <nav className="bottom-nav" aria-label={t(locale, "Primary")}>
       {entries.map((name) => {
         const meta = viewMeta[name];
         const Icon = meta.icon;
@@ -90,10 +98,10 @@ export function BottomNav({
             key={name}
             className={view === name ? "active" : ""}
             onClick={() => onChange(name)}
-            aria-label={meta.title}
+            aria-label={t(locale, meta.title)}
           >
             <Icon size={19} />
-            <span>{meta.title}</span>
+            <span>{t(locale, meta.title)}</span>
           </button>
         );
       })}
@@ -102,6 +110,7 @@ export function BottomNav({
 }
 
 export function QuickActions({ onOpen }: { onOpen: (view: ViewName) => void }) {
+  const locale = useLocale();
   const actions = [
     { view: "energy" as ViewName, label: "Consumption", icon: Activity },
     { view: "automation" as ViewName, label: "Schedules", icon: Clock3 },
@@ -109,11 +118,11 @@ export function QuickActions({ onOpen }: { onOpen: (view: ViewName) => void }) {
     { view: "rooms" as ViewName, label: "Rooms", icon: MapPin },
   ];
   return (
-    <section className="quick-grid" aria-label="Quick actions">
+    <section className="quick-grid" aria-label={t(locale, "Quick actions")}>
       {actions.map(({ view, label, icon: Icon }) => (
-        <button key={label} className="quick-card" onClick={() => onOpen(view)} aria-label={label}>
+        <button key={label} className="quick-card" onClick={() => onOpen(view)} aria-label={t(locale, label)}>
           <span className="quick-icon"><Icon size={19} /></span>
-          <span>{label}</span>
+          <span>{t(locale, label)}</span>
         </button>
       ))}
     </section>
@@ -127,12 +136,13 @@ export function SearchBar({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const locale = useLocale();
   return (
     <label className="search-box">
       <Search size={18} />
       <input
-        aria-label="Search strips and outlets"
-        placeholder="Search strips and outlets"
+        aria-label={t(locale, "Search strips and outlets")}
+        placeholder={t(locale, "Search strips and outlets")}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -190,6 +200,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const locale = useLocale();
   return (
     <Modal
       open={open}
@@ -197,7 +208,7 @@ export function ConfirmDialog({
       onClose={onClose}
       footer={
         <>
-          <button className="button secondary" onClick={onClose}>Cancel</button>
+          <button className="button secondary" onClick={onClose}>{t(locale, "Cancel")}</button>
           <button className={`button ${danger ? "danger" : "primary"}`} onClick={onConfirm}>{confirmLabel}</button>
         </>
       }
@@ -212,9 +223,10 @@ function mappingName(
   channel: number,
   mappings: Record<string, Mapping>,
   devices: Ps4Device[],
+  locale: "en" | "ar",
 ) {
   const found = Object.entries(mappings).find(([, value]) => value.mac === mac && Number(value.outlet) === channel);
-  if (!found) return `Outlet ${channel}`;
+  if (!found) return `${t(locale, "Outlet")} ${channel}`;
   const device = devices.find((item) => String(item.id) === String(found[0]));
   return device?.name || found[0];
 }
@@ -232,6 +244,7 @@ function OutletTile({
   onToggle: () => void;
   busy: boolean;
 }) {
+  const locale = useLocale();
   const on = Boolean(outlet?.relay);
   const canControl = strip.online && strip.enabled && strip.state === "active" && !busy;
   return (
@@ -239,11 +252,13 @@ function OutletTile({
       className={`outlet-tile ${on ? "on" : ""}`}
       disabled={!canControl}
       onClick={onToggle}
-      aria-label={`${label}: ${on ? "on" : "off"}`}
+      aria-label={`${label}: ${t(locale, on ? "ON" : "OFF")}`}
+      aria-pressed={on}
+      aria-busy={busy}
     >
       <span className="outlet-icon"><PlugZap size={17} /></span>
       <span className="outlet-name" dir="auto">{label}</span>
-      <span className="outlet-state">{on ? "ON" : "OFF"}</span>
+      <span className="outlet-state">{t(locale, on ? "ON" : "OFF")}</span>
       <span className="outlet-power">{on ? `${Number(outlet?.power_w || 0).toFixed(1)} W` : " "}</span>
     </button>
   );
@@ -266,6 +281,7 @@ export function StripCard({
   onSetAll: (on: boolean) => void;
   onSettings: () => void;
 }) {
+  const locale = useLocale();
   const canControl = strip.online && strip.enabled && strip.state === "active";
   const status = strip.state === "disabled" ? "DISABLED" : strip.online ? "ONLINE" : "OFFLINE";
   const health = strip.health?.status?.replaceAll("_", " ") || "unknown";
@@ -274,21 +290,21 @@ export function StripCard({
       <div className="strip-head">
         <span className="status-dot" />
         <div className="strip-title" dir="auto">{strip.name}</div>
-        <span className={`status-pill ${strip.online ? "" : "offline"}`}>{status}</span>
-        <button className="strip-menu" onClick={onSettings} aria-label={`Settings for ${strip.name}`}>
+        <span className={`status-pill ${strip.online ? "" : "offline"}`}>{t(locale, status)}</span>
+        <button className="strip-menu" onClick={onSettings} aria-label={`${t(locale, "Settings for")} ${strip.name}`}>
           <MoreVertical size={18} />
         </button>
       </div>
 
       <div className="strip-meta">
-        <span>{strip.room || "Local strip"} · {health}</span>
+        <span>{strip.room || t(locale, "Local strip")} · {health}</span>
         <strong>{Number(strip.total_power_w || 0).toFixed(1)} W</strong>
       </div>
 
       <div className="outlet-grid">
         {[1, 2, 3, 4].map((channel) => {
           const outlet = strip.outlets?.find((item) => Number(item.channel) === channel);
-          const label = mappingName(strip.mac, channel, mappings, devices);
+          const label = mappingName(strip.mac, channel, mappings, devices, locale);
           return (
             <OutletTile
               key={channel}
@@ -304,10 +320,10 @@ export function StripCard({
 
       <div className="bulk-grid">
         <button className="button soft-green" disabled={!canControl} onClick={() => onSetAll(true)}>
-          Turn all on
+          {t(locale, "Turn all on")}
         </button>
         <button className="button secondary" disabled={!canControl} onClick={() => onSetAll(false)}>
-          Turn all off
+          {t(locale, "Turn all off")}
         </button>
       </div>
 
