@@ -3,7 +3,9 @@ import { CirclePlus, LoaderCircle, Star, Trash2 } from "lucide-react";
 
 import { AuthError, api, getApiToken, setApiToken, subscribeEvents } from "./api";
 import { AddStripView, AutomationView, DashboardView, EnergyView, RoomsView, SettingsView } from "./views";
-import { AppHeader, BottomNav, ConfirmDialog, Modal } from "./ui";
+import { AppHeader, BottomNav, ConfirmDialog, DesktopSidebar, Modal } from "./ui";
+import { initialLocale, LocaleContext, persistLocale, t } from "./i18n";
+import type { Locale } from "./i18n";
 import type { AutomationSnapshot, Overview, Strip, ViewName } from "./types";
 
 const emptyAutomation: AutomationSnapshot = { schedules: {}, rules: {}, queue: [] };
@@ -32,6 +34,7 @@ function updateOutletLocal(overview: Overview, mac: string, outlet: number, on: 
 
 export default function App() {
   const [view, setView] = useState<ViewName>("dashboard");
+  const [locale, setLocale] = useState<Locale>(initialLocale);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [automation, setAutomation] = useState<AutomationSnapshot>(emptyAutomation);
   const [search, setSearch] = useState("");
@@ -127,17 +130,19 @@ export default function App() {
     });
   }, [editingStrip]);
 
-  async function setOutlet(strip: Strip, outlet: number, on: boolean) {
+  async function setOutlet(strip: Strip, outlet: number, on: boolean): Promise<boolean> {
     const key = `${strip.mac}:${outlet}`;
-    if (busyChannels.has(key)) return;
+    if (busyChannels.has(key)) return false;
     setBusyChannels((current) => new Set(current).add(key));
     setOverview((current) => (current ? updateOutletLocal(current, strip.mac, outlet, on) : current));
     try {
       await api.setOutlet(strip.mac, outlet, on);
       await refreshOverview();
+      return true;
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), true);
       await refreshOverview();
+      return false;
     } finally {
       setBusyChannels((current) => {
         const next = new Set(current);
@@ -149,17 +154,19 @@ export default function App() {
 
   function requestSetAll(strip: Strip, on: boolean) {
     setConfirm({
-      title: on ? "Turn all outlets on?" : "Turn all outlets off?",
+      title: t(locale, on ? "Turn all outlets on?" : "Turn all outlets off?"),
       message: `${strip.name} will switch all four outlets ${on ? "on" : "off"}. Commands are sent and verified one outlet at a time.`,
-      confirmLabel: on ? "Turn all on" : "Turn all off",
+      confirmLabel: t(locale, on ? "Turn all on" : "Turn all off"),
       danger: !on,
       action: async () => {
+        let failed = false;
         for (const channel of [1, 2, 3, 4]) {
           const current = strip.outlets?.find((item) => Number(item.channel) === channel);
           if (Boolean(current?.relay) === on) continue;
-          await setOutlet(strip, channel, on);
+          if (!(await setOutlet(strip, channel, on))) failed = true;
         }
-        notify(on ? "All outlets are on." : "All outlets are off.");
+        if (failed) notify(t(locale, "Some outlets could not be updated. Please check device status."), true);
+        else notify(t(locale, on ? "All outlets are on." : "All outlets are off."));
       },
     });
   }
@@ -185,7 +192,7 @@ export default function App() {
       }
       setEditingStrip(null);
       await refreshOverview();
-      notify("Strip settings saved.");
+      notify(t(locale, "Strip settings saved."));
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), true);
     }
@@ -193,15 +200,15 @@ export default function App() {
 
   function requestRemoveStrip(strip: Strip) {
     setConfirm({
-      title: "Remove this strip?",
+      title: t(locale, "Remove this strip?"),
       message: `${strip.name} will be removed from active control and any PlayStation mappings to it will be cleared. The historical record is kept to avoid accidental rediscovery.`,
-      confirmLabel: "Remove strip",
+      confirmLabel: t(locale, "Remove strip"),
       danger: true,
       action: async () => {
         await api.removeStrip(strip.mac);
         setEditingStrip(null);
         await refreshOverview();
-        notify("Strip removed.");
+        notify(t(locale, "Strip removed."));
       },
     });
   }
@@ -279,13 +286,20 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <LocaleContext.Provider value={locale}>
+    <div className="app-shell" lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}>
+      <DesktopSidebar view={view} onChange={setView} version={overview.version} />
       <div className="app-frame">
         <AppHeader
           view={view}
           onBack={() => setView("dashboard")}
           onRefresh={refreshAll}
           onSettings={() => setView("settings")}
+          onLanguageToggle={() => {
+            const next: Locale = locale === "en" ? "ar" : "en";
+            setLocale(next);
+            persistLocale(next);
+          }}
           busy={loading}
         />
 
@@ -322,25 +336,25 @@ export default function App() {
 
       <Modal
         open={Boolean(editingStrip)}
-        title={editingStrip?.name || "Strip settings"}
+        title={editingStrip?.name || t(locale, "Settings")}
         onClose={() => setEditingStrip(null)}
         footer={
           <>
-            <button className="button secondary" onClick={() => setEditingStrip(null)}>Cancel</button>
-            <button className="button primary" onClick={saveStripSettings}>Save changes</button>
+            <button className="button secondary" onClick={() => setEditingStrip(null)}>{t(locale, "Cancel")}</button>
+            <button className="button primary" onClick={saveStripSettings}>{t(locale, "Save changes")}</button>
           </>
         }
       >
         {editingStrip && (
           <div className="settings-form">
-            <label><span>Strip name</span><input value={stripDraft.name} onChange={(e) => setStripDraft({ ...stripDraft, name: e.target.value })} /></label>
-            <label><span>Room</span><input placeholder="Living Room" value={stripDraft.room} onChange={(e) => setStripDraft({ ...stripDraft, room: e.target.value })} /></label>
+            <label><span>{t(locale, "Strip name")}</span><input value={stripDraft.name} onChange={(e) => setStripDraft({ ...stripDraft, name: e.target.value })} /></label>
+            <label><span>{t(locale, "Room")}</span><input placeholder="Living Room" value={stripDraft.room} onChange={(e) => setStripDraft({ ...stripDraft, room: e.target.value })} /></label>
             <div className="toggle-row">
-              <span><Star size={17} /><span><strong>Favorite</strong><small>Keep this strip prominent in future layouts.</small></span></span>
+              <span><Star size={17} /><span><strong>{t(locale, "Favorite")}</strong><small>Keep this strip prominent in future layouts.</small></span></span>
               <button className={`switch ${stripDraft.favorite ? "on" : ""}`} onClick={() => setStripDraft({ ...stripDraft, favorite: !stripDraft.favorite })} aria-label="Favorite"><i /></button>
             </div>
             <div className="toggle-row">
-              <span><CirclePlus size={17} /><span><strong>Control enabled</strong><small>Disable commands while preserving mappings.</small></span></span>
+              <span><CirclePlus size={17} /><span><strong>{t(locale, "Control enabled")}</strong><small>Disable commands while preserving mappings.</small></span></span>
               <button className={`switch ${stripDraft.enabled ? "on" : ""}`} onClick={() => setStripDraft({ ...stripDraft, enabled: !stripDraft.enabled })} aria-label="Control enabled"><i /></button>
             </div>
             <div className="device-facts">
@@ -349,7 +363,7 @@ export default function App() {
               <span><b>Firmware</b>{editingStrip.firmware_version || "—"}</span>
             </div>
             <button className="button danger wide" onClick={() => requestRemoveStrip(editingStrip)}>
-              <Trash2 size={16} /> Remove strip
+              <Trash2 size={16} /> {t(locale, "Remove strip")}
             </button>
           </div>
         )}
@@ -373,5 +387,6 @@ export default function App() {
 
       {toast && <div className={`toast ${toast.error ? "error" : ""}`}>{toast.message}</div>}
     </div>
+    </LocaleContext.Provider>
   );
 }
