@@ -4,6 +4,7 @@ import { CirclePlus, LoaderCircle, Star, Trash2 } from "lucide-react";
 import { AuthError, api, getApiToken, setApiToken, subscribeEvents } from "./api";
 import { AddStripView, AutomationView, DashboardView, EnergyView, RoomsView, SettingsView } from "./views";
 import { AppHeader, BottomNav, ConfirmDialog, Modal } from "./ui";
+import { DesktopDashboard, DesktopHeader, DesktopSidebar } from "./desktop";
 import type { AutomationSnapshot, Overview, Strip, ViewName } from "./types";
 
 const emptyAutomation: AutomationSnapshot = { schedules: {}, rules: {}, queue: [] };
@@ -280,7 +281,9 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <DesktopSidebar view={view} onNavigate={setView} overview={overview} />
       <div className="app-frame">
+        <DesktopHeader view={view} onRefresh={refreshAll} onSettings={() => setView("settings")} busy={loading} />
         <AppHeader
           view={view}
           onBack={() => setView("dashboard")}
@@ -291,7 +294,7 @@ export default function App() {
 
         <main className="main-content">
           {view === "dashboard" && (
-            <DashboardView
+            <div className="mobile-dashboard"><DashboardView
               overview={overview}
               automation={automation}
               search={search}
@@ -301,7 +304,20 @@ export default function App() {
               onToggleOutlet={setOutlet}
               onSetAll={requestSetAll}
               onStripSettings={setEditingStrip}
-            />
+            /></div>
+          )}
+          {view === "dashboard" && (
+            <div className="desktop-dashboard"><DesktopDashboard
+              overview={overview}
+              automation={automation}
+              search={search}
+              onSearch={setSearch}
+              busyChannels={busyChannels}
+              onNavigate={setView}
+              onToggleOutlet={setOutlet}
+              onSetAll={requestSetAll}
+              onStripSettings={setEditingStrip}
+            /></div>
           )}
           {view === "energy" && <EnergyView overview={overview} notify={notify} />}
           {view === "automation" && (
