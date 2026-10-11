@@ -263,11 +263,11 @@ export function DesktopDashboard({
         <div className="dw-device-title-row">
           <div>
             <span className="dw-eyebrow">{t(locale, "DEVICE MANAGEMENT")}</span>
-            <h2>Your strips <span className="dw-device-count">{strips.length}</span></h2>
+            <h2>{t(locale, "Your strips")} <span className="dw-device-count">{strips.length}</span></h2>
             <p>{t(locale, "Control and monitor all your connected power strips.")}</p>
           </div>
           <button className="dw-add-button" onClick={() => onNavigate("add")}>
-            <CirclePlus size={19} /> Add strip
+            <CirclePlus size={19} /> {t(locale, "Add strip")}
           </button>
         </div>
 
