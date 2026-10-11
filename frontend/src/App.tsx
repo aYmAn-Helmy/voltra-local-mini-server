@@ -5,6 +5,8 @@ import { AuthError, api, getApiToken, setApiToken, subscribeEvents } from "./api
 import { AddStripView, AutomationView, DashboardView, EnergyView, RoomsView, SettingsView } from "./views";
 import { AppHeader, BottomNav, ConfirmDialog, Modal } from "./ui";
 import { DesktopDashboard, DesktopHeader, DesktopSidebar } from "./desktop";
+import { initialLocale, LocaleContext, persistLocale, t } from "./i18n";
+import type { Locale } from "./i18n";
 import type { AutomationSnapshot, Overview, Strip, ViewName } from "./types";
 
 const emptyAutomation: AutomationSnapshot = { schedules: {}, rules: {}, queue: [] };
@@ -49,6 +51,8 @@ function updateOutletLocal(overview: Overview, mac: string, outlet: number, on: 
 
 export default function App() {
   const [view, setView] = useState<ViewName>("dashboard");
+  const [locale, setLocale] = useState<Locale>(initialLocale);
+  const toggleLanguage = () => setLocale((prev) => { const next = prev === "en" ? "ar" : "en"; persistLocale(next); return next; });
   const desktop = useDesktopLayout();
   const [overview, setOverview] = useState<Overview | null>(null);
   const [automation, setAutomation] = useState<AutomationSnapshot>(emptyAutomation);
@@ -62,6 +66,17 @@ export default function App() {
   const [tokenDraft, setTokenDraft] = useState(() => getApiToken());
   const [stripDraft, setStripDraft] = useState({ name: "", room: "", favorite: false, enabled: true });
   const refreshTimer = useRef<number | null>(null);
+  // Keep pending user intent in the rendered state while SSE/poll snapshots arrive.
+  const pendingCommands = useRef(new Map<string, boolean>());
+  const busyRef = useRef(new Set<string>());
+  const withPending = useCallback((next: Overview): Overview => {
+    let merged = next;
+    pendingCommands.current.forEach((on, key) => {
+      const separator = key.lastIndexOf(":");
+      if (separator > 0) merged = updateOutletLocal(merged, key.slice(0, separator), Number(key.slice(separator + 1)), on);
+    });
+    return merged;
+  }, []);
 
   const notify = useCallback((message: string, error = false) => {
     setToast({ message, error });
@@ -71,7 +86,7 @@ export default function App() {
   const refreshOverview = useCallback(async () => {
     try {
       const next = await api.overview();
-      setOverview(next);
+      setOverview(withPending(next));
       setAuthRequired(false);
     } catch (error) {
       if (error instanceof AuthError) {
@@ -80,7 +95,7 @@ export default function App() {
       }
       throw error;
     }
-  }, []);
+  }, [withPending]);
 
   const refreshAutomation = useCallback(async () => {
     try {
@@ -100,7 +115,7 @@ export default function App() {
     setLoading((current) => current || !overview);
     try {
       const [nextOverview, nextAutomation] = await Promise.all([api.overview(), api.automation()]);
-      setOverview(nextOverview);
+      setOverview(withPending(nextOverview));
       setAutomation(nextAutomation);
     } catch (error) {
       if (error instanceof AuthError) {
@@ -111,7 +126,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [notify, overview]);
+  }, [notify, overview, withPending]);
 
   useEffect(() => {
     refreshAll();
@@ -145,39 +160,57 @@ export default function App() {
     });
   }, [editingStrip]);
 
-  async function setOutlet(strip: Strip, outlet: number, on: boolean) {
-    const key = `${strip.mac}:${outlet}`;
-    if (busyChannels.has(key)) return;
-    setBusyChannels((current) => new Set(current).add(key));
-    setOverview((current) => (current ? updateOutletLocal(current, strip.mac, outlet, on) : current));
+  async function sendOutlet(strip: Strip, channel: number, on: boolean): Promise<boolean> {
+    const key = `${strip.mac}:${channel}`;
+    if (busyRef.current.has(key)) return false;
+    busyRef.current.add(key);
+    pendingCommands.current.set(key, on);
+    setBusyChannels(new Set(busyRef.current));
+    setOverview((old) => old ? updateOutletLocal(old, strip.mac, channel, on) : old);
     try {
-      await api.setOutlet(strip.mac, outlet, on);
-      await refreshOverview();
+      const result = await api.setOutlet(strip.mac, channel, on);
+      // An ACK is not an electrical state verification. Never claim confirmed success without GETINFO.
+      if (result.metrics?.last_command_confirmed !== true) {
+        notify(t(locale, "Command sent; outlet state is not verified yet."), true);
+      }
+      return result.metrics?.last_command_confirmed === true;
     } catch (error) {
       notify(error instanceof Error ? error.message : String(error), true);
-      await refreshOverview();
+      return false;
     } finally {
-      setBusyChannels((current) => {
-        const next = new Set(current);
-        next.delete(key);
-        return next;
-      });
+      pendingCommands.current.delete(key);
+      busyRef.current.delete(key);
+      setBusyChannels(new Set(busyRef.current));
+    }
+  }
+
+  async function setOutlet(strip: Strip, channel: number, on: boolean): Promise<void> {
+    try {
+      await sendOutlet(strip, channel, on);
+    } finally {
+      await refreshOverview().catch((error) => notify(String(error), true));
     }
   }
 
   function requestSetAll(strip: Strip, on: boolean) {
+    if ([1, 2, 3, 4].some((channel) => busyRef.current.has(`${strip.mac}:${channel}`))) return;
     setConfirm({
-      title: on ? "Turn all outlets on?" : "Turn all outlets off?",
+      title: t(locale, on ? "Turn all outlets on?" : "Turn all outlets off?"),
       message: `${strip.name} will switch all four outlets ${on ? "on" : "off"}. Commands are sent and verified one outlet at a time.`,
-      confirmLabel: on ? "Turn all on" : "Turn all off",
+      confirmLabel: t(locale, on ? "Turn all on" : "Turn all off"),
       danger: !on,
       action: async () => {
-        for (const channel of [1, 2, 3, 4]) {
-          const current = strip.outlets?.find((item) => Number(item.channel) === channel);
-          if (Boolean(current?.relay) === on) continue;
-          await setOutlet(strip, channel, on);
+        let failed = 0;
+        try {
+          for (const channel of [1, 2, 3, 4]) {
+            const current = strip.outlets?.find((item) => Number(item.channel) === channel);
+            if (Boolean(current?.relay) === on) continue;
+            if (!(await sendOutlet(strip, channel, on))) failed++;
+          }
+        } finally {
+          await refreshOverview().catch((error) => notify(String(error), true));
         }
-        notify(on ? "All outlets are on." : "All outlets are off.");
+        notify(t(locale, failed ? "Some outlets could not be updated. Please check device status." : on ? "All outlets are on." : "All outlets are off."), failed > 0);
       },
     });
   }
@@ -297,14 +330,16 @@ export default function App() {
   }
 
   return (
-    <div className="app-shell">
+    <LocaleContext.Provider value={locale}>
+    <div className="app-shell" lang={locale} dir={locale === "ar" ? "rtl" : "ltr"}>
       {desktop && <DesktopSidebar view={view} onNavigate={setView} overview={overview} />}
       <div className="app-frame">
-        {desktop ? <DesktopHeader view={view} onRefresh={refreshAll} onSettings={() => setView("settings")} busy={loading} /> : <AppHeader
+        {desktop ? <DesktopHeader view={view} onRefresh={refreshAll} onSettings={() => setView("settings")} onLanguageToggle={toggleLanguage} busy={loading} /> : <AppHeader
           view={view}
           onBack={() => setView("dashboard")}
           onRefresh={refreshAll}
           onSettings={() => setView("settings")}
+          onLanguageToggle={toggleLanguage}
           busy={loading}
         />}
 
@@ -405,5 +440,6 @@ export default function App() {
 
       {toast && <div className={`toast ${toast.error ? "error" : ""}`}>{toast.message}</div>}
     </div>
+    </LocaleContext.Provider>
   );
 }
