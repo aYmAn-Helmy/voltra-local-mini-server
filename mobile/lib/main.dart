@@ -1809,8 +1809,20 @@ class _AddStripPageState extends State<AddStripPage> {
   final names = <String, TextEditingController>{};
   final ssid = TextEditingController();
   final password = TextEditingController();
-  final serverIp = TextEditingController(text: '192.168.1.45');
+  final serverIp = TextEditingController();
   final deviceIp = TextEditingController(text: '192.168.1.1');
+
+  @override
+  void initState() {
+    super.initState();
+    // Provisioning must use a real server LAN IP, never a fixed or remote URL.
+    final connectedUri = Uri.tryParse(widget.controller.baseUrl);
+    final host = connectedUri?.host ?? '';
+    if (connectedUri?.scheme == 'http' &&
+        RegExp(r'^\d{1,3}(\.\d{1,3}){3}$').hasMatch(host)) {
+      serverIp.text = host;
+    }
+  }
 
   @override
   void dispose() {

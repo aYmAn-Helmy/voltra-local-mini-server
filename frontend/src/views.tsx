@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 
 import { api } from "./api";
+import { t, useLocale } from "./i18n";
 import {
   EmptyState,
   EnergyChart,
@@ -96,6 +97,7 @@ export function DashboardView({
   onSetAll: (strip: Strip, on: boolean) => void;
   onStripSettings: (strip: Strip) => void;
 }) {
+  const locale = useLocale();
   const strips = activeStrips(overview);
   const normalized = search.trim().toLowerCase();
   const filtered = strips.filter((strip) => {
@@ -119,38 +121,63 @@ export function DashboardView({
 
   return (
     <>
-      <button className="profile-card" onClick={() => onNavigate("settings")}>
-        <span className="avatar">VL</span>
-        <span className="profile-copy">
-          <strong>Voltra Local</strong>
-          <small>v{overview.version} · Local mini server</small>
-        </span>
-        <span className="profile-chevron">›</span>
-      </button>
+      <div className="dashboard-intro">
+        <div>
+          <span className="eyebrow">{t(locale, "Your smart power control center")}</span>
+          <h2>{t(locale, "All your power, one place.")}</h2>
+          <p>{t(locale, "Switch outlets, track usage, and automate every room.")}</p>
+        </div>
+        <span className="intro-live"><span className="status-dot" /> {t(locale, "Live monitoring")}</span>
+      </div>
 
-      <section className="power-hero">
-        <span>Total power right now</span>
-        <div className="power-value">
-          <strong>{Number(overview.summary.total_power_w || 0).toFixed(1)}</strong>
-          <small>W</small>
+      <div className="dashboard-overview">
+        <section className="power-hero">
+          <div className="hero-topline">
+            <span className="eyebrow">{t(locale, "POWER OVERVIEW")}</span>
+            <Zap size={22} aria-hidden="true" />
+          </div>
+          <span className="power-hero-label">{t(locale, "Total power right now")}</span>
+          <div className="power-value">
+            <strong>{Number(overview.summary.total_power_w || 0).toFixed(1)}</strong>
+            <small>W</small>
+          </div>
+          <div className="hero-meta">
+            <span><span className="mini-dot" /> {t(locale, "Live monitoring")}</span>
+            <span>Voltra · v{overview.version}</span>
+          </div>
+        </section>
+        <div className="overview-kpis">
+          <div className="overview-kpi">
+            <span><Wifi size={17} /> {t(locale, "Connected")}</span>
+            <strong>{overview.summary.online_strips}<small> / {strips.length}</small></strong>
+            <small>{t(locale, "strips online")}</small>
+          </div>
+          <div className="overview-kpi">
+            <span><Bolt size={17} /> {t(locale, "Active outlets")}</span>
+            <strong>{outletOn}<small> / {outletTotal}</small></strong>
+            <small>{t(locale, "outlets on")}</small>
+          </div>
+          <div className="overview-kpi">
+            <span><CalendarClock size={17} /> {t(locale, "Active schedules")}</span>
+            <strong>{schedules}</strong>
+            <small>{t(locale, "plans active")}</small>
+          </div>
         </div>
-        <div className="hero-meta">
-          <span><b>{overview.summary.online_strips}</b> strips online</span>
-          <span><b>{outletOn}/{outletTotal}</b> outlets on</span>
-          <span><b>{schedules}</b> plans active</span>
-        </div>
-      </section>
+      </div>
 
       <QuickActions onOpen={onNavigate} />
-      <SearchBar value={search} onChange={onSearch} />
 
-      <section className="section-head compact">
-        <div>
-          <span className="eyebrow">LIVE DEVICES</span>
-          <h2>{normalized ? "Search results" : "Your strips"}</h2>
+      <div className="device-toolbar">
+        <div className="device-toolbar-heading">
+          <span className="eyebrow">{t(locale, "LIVE DEVICES")}</span>
+          <h2>{t(locale, normalized ? "Search results" : "Your strips")} <span className="count-badge">{filtered.length}</span></h2>
+          <p>{t(locale, "Manage your connected power strips")}</p>
         </div>
-        <span className="count-badge">{filtered.length}</span>
-      </section>
+        <SearchBar value={search} onChange={onSearch} />
+        <button className="button primary desktop-add" onClick={() => onNavigate("add")}>
+          <CirclePlus size={17} /> {t(locale, "Add strip")}
+        </button>
+      </div>
 
       <div className="strip-list">
         {filtered.map((strip) => (
@@ -167,16 +194,16 @@ export function DashboardView({
         ))}
         {!filtered.length && (
           <EmptyState
-            title={normalized ? "No matching strips" : "No strips yet"}
+            title={t(locale, normalized ? "No matching strips" : "No strips yet")}
             description={
               normalized
-                ? "Try a strip name, room, MAC address, or mapped device name."
-                : "Add your first MTTL-W01 strip and it will appear here."
+                ? t(locale, "Try a strip name, room, MAC address, or mapped device name.")
+                : t(locale, "Add your first MTTL-W01 strip and it will appear here.")
             }
             action={
               !normalized ? (
                 <button className="button primary" onClick={() => onNavigate("add")}>
-                  <CirclePlus size={17} /> Add strip
+                  <CirclePlus size={17} /> {t(locale, "Add strip")}
                 </button>
               ) : undefined
             }
@@ -184,8 +211,8 @@ export function DashboardView({
         )}
       </div>
 
-      <button className="fab" onClick={() => onNavigate("add")} aria-label="Add strip">
-        <CirclePlus size={20} /> <span>Add strip</span>
+      <button className="fab" onClick={() => onNavigate("add")} aria-label={t(locale, "Add strip")}>
+        <CirclePlus size={20} /> <span>{t(locale, "Add strip")}</span>
       </button>
     </>
   );
@@ -198,6 +225,7 @@ export function EnergyView({
   overview: Overview;
   notify: (message: string, error?: boolean) => void;
 }) {
+  const locale = useLocale();
   const strips = activeStrips(overview);
   const [mac, setMac] = useState(strips[0]?.mac || "");
   const [hours, setHours] = useState(24);
@@ -238,21 +266,21 @@ export function EnergyView({
     <div className="view-stack">
       <section className="section-head">
         <div>
-          <span className="eyebrow">ENERGY INSIGHTS</span>
-          <h2>Consumption</h2>
-          <p>Local history from Voltra telemetry. No cloud required.</p>
+          <span className="eyebrow">{t(locale, "ENERGY INSIGHTS")}</span>
+          <h2>{t(locale, "Consumption")}</h2>
+          <p>{t(locale, "Local history from Voltra telemetry. No cloud required.")}</p>
         </div>
       </section>
 
       <section className="filter-card">
         <label>
-          <span>Strip</span>
+          <span>{t(locale, "Strip")}</span>
           <select value={mac} onChange={(e) => setMac(e.target.value)}>
             {strips.map((strip) => <option key={strip.mac} value={strip.mac}>{strip.name}</option>)}
           </select>
         </label>
         <label>
-          <span>Period</span>
+          <span>{t(locale, "Period")}</span>
           <select value={hours} onChange={(e) => setHours(Number(e.target.value))}>
             <option value={6}>6 hours</option>
             <option value={24}>24 hours</option>
@@ -261,9 +289,9 @@ export function EnergyView({
           </select>
         </label>
         <label>
-          <span>Scope</span>
+          <span>{t(locale, "Scope")}</span>
           <select value={outlet ?? ""} onChange={(e) => setOutlet(e.target.value ? Number(e.target.value) : null)}>
-            <option value="">Whole strip</option>
+            <option value="">{t(locale, "Whole strip")}</option>
             <option value="1">Outlet 1</option>
             <option value="2">Outlet 2</option>
             <option value="3">Outlet 3</option>
@@ -273,17 +301,17 @@ export function EnergyView({
       </section>
 
       <div className="metric-grid">
-        <MetricCard icon={Activity} label="Average power" value={`${Number(summary?.average_power_w || 0).toFixed(1)} W`} />
-        <MetricCard icon={Zap} label="Peak power" value={`${Number(summary?.max_power_w || 0).toFixed(1)} W`} />
-        <MetricCard icon={BarChart3} label="Energy" value={`${Number(summary?.energy_kwh || 0).toFixed(3)} kWh`} accent />
-        <MetricCard icon={Coins} label="Estimated cost" value={`${cost.toFixed(2)} ${overview.settings.currency}`} />
+        <MetricCard icon={Activity} label={t(locale, "Average power")} value={`${Number(summary?.average_power_w || 0).toFixed(1)} W`} />
+        <MetricCard icon={Zap} label={t(locale, "Peak power")} value={`${Number(summary?.max_power_w || 0).toFixed(1)} W`} />
+        <MetricCard icon={BarChart3} label={t(locale, "Energy")} value={`${Number(summary?.energy_kwh || 0).toFixed(3)} kWh`} accent />
+        <MetricCard icon={Coins} label={t(locale, "Estimated cost")} value={`${cost.toFixed(2)} ${overview.settings.currency}`} />
       </div>
 
       <section className="surface-card chart-card">
         <div className="card-title-row">
           <div>
-            <span className="eyebrow">POWER HISTORY</span>
-            <h3>{outlet ? `Outlet ${outlet}` : "Whole strip"}</h3>
+            <span className="eyebrow">{t(locale, "POWER HISTORY")}</span>
+            <h3>{outlet ? `${t(locale, "Outlet")} ${outlet}` : t(locale, "Whole strip")}</h3>
           </div>
           <span className={`live-chip ${busy ? "loading" : ""}`}>{busy ? "Updating" : `${history?.samples || 0} samples`}</span>
         </div>
@@ -304,6 +332,7 @@ export function AutomationView({
   reload: () => Promise<void>;
   notify: (message: string, error?: boolean) => void;
 }) {
+  const locale = useLocale();
   const options = targetOptions(overview);
   const [target, setTarget] = useState(options[0]?.value || "");
   const [actionOn, setActionOn] = useState(false);
@@ -392,7 +421,7 @@ export function AutomationView({
       <section className="section-head">
         <div>
           <span className="eyebrow">LOCAL AUTOMATION</span>
-          <h2>Automation</h2>
+          <h2>{t(locale, "Automation")}</h2>
           <p>Schedules and timers keep running without Internet while the Voltra server is online.</p>
         </div>
         <span className="count-badge">{schedules.length + rules.length}</span>
@@ -402,7 +431,7 @@ export function AutomationView({
         <div className="card-title-row">
           <div>
             <span className="eyebrow">NEW PLAN</span>
-            <h3>Schedule an outlet</h3>
+            <h3>{t(locale, "Schedule an outlet")}</h3>
           </div>
           <CalendarClock size={20} />
         </div>
@@ -414,11 +443,11 @@ export function AutomationView({
             </select>
           </label>
           <label>
-            <span>Time</span>
+            <span>{t(locale, "Time")}</span>
             <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
           </label>
           <label>
-            <span>Action</span>
+            <span>{t(locale, "Action")}</span>
             <select value={actionOn ? "on" : "off"} onChange={(e) => setActionOn(e.target.value === "on")}>
               <option value="off">Turn off</option>
               <option value="on">Turn on</option>
@@ -454,7 +483,7 @@ export function AutomationView({
         <div className="card-title-row">
           <div>
             <span className="eyebrow">QUICK TIMER</span>
-            <h3>Countdown</h3>
+            <h3>{t(locale, "Countdown")}</h3>
           </div>
           <AlarmClock size={20} />
         </div>
@@ -471,7 +500,7 @@ export function AutomationView({
         <div className="card-title-row">
           <div>
             <span className="eyebrow">SMART RULES</span>
-            <h3>Health & power alerts</h3>
+            <h3>{t(locale, "Health & power alerts")}</h3>
           </div>
           <BellRing size={20} />
         </div>
@@ -499,7 +528,7 @@ export function AutomationView({
       </section>
 
       <section className="section-head compact">
-        <div><span className="eyebrow">ACTIVE PLANS</span><h2>Schedules</h2></div>
+        <div><span className="eyebrow">ACTIVE PLANS</span><h2>{t(locale, "Schedules")}</h2></div>
       </section>
       <div className="list-stack">
         {schedules.map((schedule) => {
@@ -532,7 +561,7 @@ export function AutomationView({
       </div>
 
       <section className="section-head compact">
-        <div><span className="eyebrow">RULES</span><h2>Automation rules</h2></div>
+        <div><span className="eyebrow">RULES</span><h2>{t(locale, "Automation rules")}</h2></div>
       </section>
       <div className="list-stack">
         {rules.map((rule) => (
@@ -610,6 +639,7 @@ export function RoomsView({
   refresh: () => Promise<void>;
   notify: (message: string, error?: boolean) => void;
 }) {
+  const locale = useLocale();
   const strips = activeStrips(overview);
   const [roomDrafts, setRoomDrafts] = useState<Record<string, string>>({});
 
@@ -658,15 +688,15 @@ export function RoomsView({
     <div className="view-stack">
       <section className="section-head">
         <div>
-          <span className="eyebrow">ORGANIZE</span>
-          <h2>Rooms</h2>
-          <p>Group strips by location and map each PlayStation/display to a physical outlet.</p>
+          <span className="eyebrow">{t(locale, "ORGANIZE")}</span>
+          <h2>{t(locale, "Rooms")}</h2>
+          <p>{t(locale, "Group strips by location and map each PlayStation/display to a physical outlet.")}</p>
         </div>
       </section>
 
       <section className="surface-card">
         <div className="card-title-row">
-          <div><span className="eyebrow">STRIP LOCATIONS</span><h3>Room names</h3></div>
+          <div><span className="eyebrow">{t(locale, "STRIP LOCATIONS")}</span><h3>{t(locale, "Room names")}</h3></div>
           <MapPin size={20} />
         </div>
         <div className="room-list">
@@ -678,7 +708,7 @@ export function RoomsView({
                 placeholder="e.g. Living Room"
                 onChange={(e) => setRoomDrafts((current) => ({ ...current, [strip.mac]: e.target.value }))}
               />
-              <button className="icon-button" onClick={() => saveRoom(strip)} aria-label="Save room"><Save size={16} /></button>
+              <button className="icon-button" onClick={() => saveRoom(strip)} aria-label={t(locale, "Save room")}><Save size={16} /></button>
             </div>
           ))}
         </div>
@@ -686,7 +716,7 @@ export function RoomsView({
 
       <section className="surface-card">
         <div className="card-title-row">
-          <div><span className="eyebrow">PLAYSTATION MAPPING</span><h3>Devices → outlets</h3></div>
+          <div><span className="eyebrow">{t(locale, "PLAYSTATION MAPPING")}</span><h3>{t(locale, "Devices → outlets")}</h3></div>
           <Router size={20} />
         </div>
         <div className="mapping-list">
@@ -697,14 +727,14 @@ export function RoomsView({
               <label className="mapping-row" key={device.id}>
                 <span><strong dir="auto">{device.name}</strong><small>{device.id}</small></span>
                 <select value={value} onChange={(e) => updateMapping(device.id, e.target.value)}>
-                  <option value="">Not mapped</option>
+                  <option value="">{t(locale, "Not mapped")}</option>
                   {outletOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                 </select>
               </label>
             );
           })}
           {!overview.ps4_devices.length && (
-            <EmptyState icon={Router} title="No PlayStation devices" description="Sync devices from PlayZone or use the legacy console to add them manually." />
+            <EmptyState icon={Router} title={t(locale, "No PlayStation devices")} description={t(locale, "Sync devices from PlayZone or use the legacy console to add them manually.")} />
           )}
         </div>
       </section>
@@ -721,6 +751,7 @@ export function AddStripView({
   refresh: () => Promise<void>;
   notify: (message: string, error?: boolean) => void;
 }) {
+  const locale = useLocale();
   const pending = overview.strips.filter((strip) => strip.state === "pending");
   const [names, setNames] = useState<Record<string, string>>({});
   const [ssid, setSsid] = useState("");
@@ -759,9 +790,9 @@ export function AddStripView({
     <div className="view-stack">
       <section className="section-head">
         <div>
-          <span className="eyebrow">ONBOARDING</span>
-          <h2>Add strip</h2>
-          <p>Voltra automatically discovers strips that connect to TCP 10086.</p>
+          <span className="eyebrow">{t(locale, "ONBOARDING")}</span>
+          <h2>{t(locale, "Add strip")}</h2>
+          <p>{t(locale, "Voltra automatically discovers strips that connect to TCP 10086.")}</p>
         </div>
         <span className="count-badge">{pending.length}</span>
       </section>
@@ -771,12 +802,12 @@ export function AddStripView({
           <article className="pending-card" key={strip.mac}>
             <div className="pending-head">
               <span className="device-orb"><Zap size={20} /></span>
-              <div><strong>New MTTL-W01</strong><small>{strip.online ? "Online now" : "Seen previously"}</small></div>
+              <div><strong>{t(locale, "New MTTL-W01")}</strong><small>{strip.online ? "Online now" : "Seen previously"}</small></div>
               <span className={`live-chip ${strip.online ? "" : "muted"}`}>{strip.online ? "READY" : "OFFLINE"}</span>
             </div>
             <div className="mono-info">{strip.mac} · {strip.last_ip || "No IP"}</div>
             <input
-              placeholder="Strip name"
+              placeholder={t(locale, "Strip name")}
               value={names[strip.mac] ?? strip.name}
               onChange={(e) => setNames((current) => ({ ...current, [strip.mac]: e.target.value }))}
             />
@@ -799,21 +830,21 @@ export function AddStripView({
           </article>
         ))}
         {!pending.length && (
-          <EmptyState icon={Wifi} title="Waiting for a new strip" description="When an MTTL-W01 connects to this server, it will appear here automatically." />
+          <EmptyState icon={Wifi} title={t(locale, "Waiting for a new strip")} description={t(locale, "When an MTTL-W01 connects to this server, it will appear here automatically.")} />
         )}
       </div>
 
       <section className="surface-card">
         <div className="card-title-row">
-          <div><span className="eyebrow">WI-FI SETUP</span><h3>Provision a new strip</h3></div>
+          <div><span className="eyebrow">{t(locale, "WI-FI SETUP")}</span><h3>{t(locale, "Provision a new strip")}</h3></div>
           <Wifi size={20} />
         </div>
-        <p className="card-copy">Use this only while the Voltra host can reach the strip's temporary TONLY_TAP Wi-Fi network.</p>
+        <p className="card-copy">{t(locale, "Use this only while the Voltra host can reach the strip's temporary TONLY_TAP Wi-Fi network.")}</p>
         <div className="form-grid">
-          <label><span>2.4 GHz Wi-Fi SSID</span><input value={ssid} onChange={(e) => setSsid(e.target.value)} /></label>
-          <label><span>Wi-Fi password</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-          <label><span>Voltra server LAN IP</span><input placeholder="192.168.1.65" value={serverIp} onChange={(e) => setServerIp(e.target.value)} /></label>
-          <label><span>Strip setup IP</span><input value={deviceIp} onChange={(e) => setDeviceIp(e.target.value)} /></label>
+          <label><span>{t(locale, "2.4 GHz Wi-Fi SSID")}</span><input value={ssid} onChange={(e) => setSsid(e.target.value)} /></label>
+          <label><span>{t(locale, "Wi-Fi password")}</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          <label><span>{t(locale, "Voltra server LAN IP")}</span><input placeholder="192.168.1.65" value={serverIp} onChange={(e) => setServerIp(e.target.value)} /></label>
+          <label><span>{t(locale, "Strip setup IP")}</span><input value={deviceIp} onChange={(e) => setDeviceIp(e.target.value)} /></label>
         </div>
         <button className="button primary wide" disabled={busy || !ssid || !serverIp} onClick={provision}>
           <Router size={17} /> Send network settings
@@ -832,6 +863,7 @@ export function SettingsView({
   refresh: () => Promise<void>;
   notify: (message: string, error?: boolean) => void;
 }) {
+  const locale = useLocale();
   const [settings, setSettings] = useState<Settings>(overview.settings);
   const [busy, setBusy] = useState(false);
 
@@ -885,51 +917,51 @@ export function SettingsView({
     <div className="view-stack">
       <section className="section-head">
         <div>
-          <span className="eyebrow">SYSTEM</span>
-          <h2>Settings</h2>
-          <p>Local preferences, safety thresholds, backup and advanced access.</p>
+          <span className="eyebrow">{t(locale, "SYSTEM")}</span>
+          <h2>{t(locale, "Settings")}</h2>
+          <p>{t(locale, "Local preferences, safety thresholds, backup and advanced access.")}</p>
         </div>
       </section>
 
       <div className="system-grid">
-        <MetricCard icon={Server} label="Server version" value={`v${overview.version}`} accent />
-        <MetricCard icon={HeartPulse} label="Online strips" value={String(overview.summary.online_strips)} />
-        <MetricCard icon={ShieldCheck} label="Mode" value={overview.mode.toUpperCase()} />
-        <MetricCard icon={Bolt} label="Current load" value={`${Number(overview.summary.total_power_w || 0).toFixed(1)} W`} />
+        <MetricCard icon={Server} label={t(locale, "Server version")} value={`v${overview.version}`} accent />
+        <MetricCard icon={HeartPulse} label={t(locale, "Online strips")} value={String(overview.summary.online_strips)} />
+        <MetricCard icon={ShieldCheck} label={t(locale, "Mode")} value={overview.mode.toUpperCase()} />
+        <MetricCard icon={Bolt} label={t(locale, "Current load")} value={`${Number(overview.summary.total_power_w || 0).toFixed(1)} W`} />
       </div>
 
       <section className="surface-card">
         <div className="card-title-row">
-          <div><span className="eyebrow">ENERGY</span><h3>Cost settings</h3></div>
+          <div><span className="eyebrow">ENERGY</span><h3>{t(locale, "Cost settings")}</h3></div>
           <Coins size={20} />
         </div>
         <div className="form-grid">
-          <label><span>Price per kWh</span><input type="number" step="0.01" value={settings.energy_price_per_kwh} onChange={(e) => setSettings({ ...settings, energy_price_per_kwh: Number(e.target.value) })} /></label>
-          <label><span>Currency</span><input value={settings.currency} onChange={(e) => setSettings({ ...settings, currency: e.target.value.toUpperCase() })} /></label>
+          <label><span>{t(locale, "Price per kWh")}</span><input type="number" step="0.01" value={settings.energy_price_per_kwh} onChange={(e) => setSettings({ ...settings, energy_price_per_kwh: Number(e.target.value) })} /></label>
+          <label><span>{t(locale, "Currency")}</span><input value={settings.currency} onChange={(e) => setSettings({ ...settings, currency: e.target.value.toUpperCase() })} /></label>
         </div>
       </section>
 
       <section className="surface-card">
         <div className="card-title-row">
-          <div><span className="eyebrow">HEALTH THRESHOLDS</span><h3>Diagnostics</h3></div>
+          <div><span className="eyebrow">HEALTH THRESHOLDS</span><h3>{t(locale, "Diagnostics")}</h3></div>
           <Gauge size={20} />
         </div>
         <div className="form-grid">
-          <label><span>Weak Wi-Fi dBm</span><input type="number" value={settings.weak_wifi_dbm} onChange={(e) => setSettings({ ...settings, weak_wifi_dbm: Number(e.target.value) })} /></label>
-          <label><span>Unusual power W</span><input type="number" value={settings.unusual_power_w} onChange={(e) => setSettings({ ...settings, unusual_power_w: Number(e.target.value) })} /></label>
-          <label><span>Minimum voltage</span><input type="number" value={settings.voltage_min_v} onChange={(e) => setSettings({ ...settings, voltage_min_v: Number(e.target.value) })} /></label>
-          <label><span>Maximum voltage</span><input type="number" value={settings.voltage_max_v} onChange={(e) => setSettings({ ...settings, voltage_max_v: Number(e.target.value) })} /></label>
+          <label><span>{t(locale, "Weak Wi-Fi dBm")}</span><input type="number" value={settings.weak_wifi_dbm} onChange={(e) => setSettings({ ...settings, weak_wifi_dbm: Number(e.target.value) })} /></label>
+          <label><span>{t(locale, "Unusual power W")}</span><input type="number" value={settings.unusual_power_w} onChange={(e) => setSettings({ ...settings, unusual_power_w: Number(e.target.value) })} /></label>
+          <label><span>{t(locale, "Minimum voltage")}</span><input type="number" value={settings.voltage_min_v} onChange={(e) => setSettings({ ...settings, voltage_min_v: Number(e.target.value) })} /></label>
+          <label><span>{t(locale, "Maximum voltage")}</span><input type="number" value={settings.voltage_max_v} onChange={(e) => setSettings({ ...settings, voltage_max_v: Number(e.target.value) })} /></label>
         </div>
-        <button className="button primary wide" disabled={busy} onClick={save}><Save size={17} /> Save settings</button>
+        <button className="button primary wide" disabled={busy} onClick={save}><Save size={17} />{t(locale, "Save settings")}</button>
       </section>
 
       <section className="surface-card">
         <div className="card-title-row">
-          <div><span className="eyebrow">BACKUP</span><h3>Configuration safety</h3></div>
+          <div><span className="eyebrow">BACKUP</span><h3>{t(locale, "Configuration safety")}</h3></div>
           <HardDriveDownload size={20} />
         </div>
         <div className="backup-grid">
-          <button className="button secondary" onClick={exportBackup}><ArrowDownToLine size={17} /> Export backup</button>
+          <button className="button secondary" onClick={exportBackup}><ArrowDownToLine size={17} />{t(locale, "Export backup")}</button>
           <label className="button secondary file-button">
             <ArrowUpFromLine size={17} /> Restore backup
             <input type="file" accept="application/json,.json" onChange={(e) => restoreFile(e.target.files?.[0])} />
@@ -939,8 +971,8 @@ export function SettingsView({
 
       <section className="legacy-card">
         <span><History size={20} /></span>
-        <div><strong>Legacy console</strong><small>All older advanced controls remain available as a safety fallback.</small></div>
-        <a className="button secondary" href="/voltra/legacy">Open</a>
+        <div><strong>{t(locale, "Legacy console")}</strong><small>All older advanced controls remain available as a safety fallback.</small></div>
+        <a className="button secondary" href="/voltra/legacy">{t(locale, "Open")}</a>
       </section>
     </div>
   );
