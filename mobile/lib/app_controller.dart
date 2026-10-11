@@ -28,6 +28,37 @@ class AppController extends ChangeNotifier {
   String appVersion = '—';
   String appBuild = '—';
   Timer? _poller;
+  int _refreshSerial = 0;
+  final Map<String, bool> _pendingOutlets = {};
+  final Set<String> busyOutlets = {};
+
+  bool outletBusy(String mac, int channel) => busyOutlets.contains("$mac:$channel");
+
+  void _applyOutlet(Map<String, dynamic>? source, String mac, int channel, bool on) {
+    if (source == null) return;
+    final strips = source["strips"];
+    if (strips is! List) return;
+    for (final strip in strips) {
+      if (strip is! Map || strip["mac"]?.toString() != mac) continue;
+      final outlets = strip["outlets"];
+      if (outlets is! List) continue;
+      for (final outlet in outlets) {
+        if (outlet is Map && int.tryParse("${outlet["channel"]}") == channel) {
+          outlet["relay"] = on;
+          return;
+        }
+      }
+    }
+  }
+
+  void _overlayPending(Map<String, dynamic> source) {
+    for (final entry in _pendingOutlets.entries) {
+      final separator = entry.key.lastIndexOf(":");
+      if (separator < 0) continue;
+      _applyOutlet(source, entry.key.substring(0, separator), int.parse(entry.key.substring(separator + 1)), entry.value);
+    }
+  }
+
 
   String get baseUrl => api?.baseUrl ?? '';
   bool get apiTokenConfigured => api?.hasApiToken ?? false;
@@ -140,6 +171,9 @@ class AppController extends ChangeNotifier {
   Future<void> disconnect() async {
     _poller?.cancel();
     _poller = null;
+    _refreshSerial++;
+    busyOutlets.clear();
+    _pendingOutlets.clear();
     final current = api;
     api = null;
     current?.close();
@@ -162,37 +196,65 @@ class AppController extends ChangeNotifier {
   Future<void> refresh({bool silent = false}) async {
     final client = api;
     if (client == null) return;
+    final generation = ++_refreshSerial;
     if (!silent) {
       loading = true;
       notifyListeners();
     }
     try {
-      final result = await Future.wait([
-        client.overview(),
-        client.automation(),
-      ]);
-      overview = result[0];
+      final result = await Future.wait([client.overview(), client.automation()]);
+      if (generation != _refreshSerial || !identical(client, api)) return;
+      final next = result[0];
+      _overlayPending(next);
+      overview = next;
       automation = result[1];
       connected = true;
       error = null;
     } catch (e) {
-      error = e.toString();
+      if (generation == _refreshSerial) error = e.toString();
     } finally {
       if (!silent) loading = false;
       notifyListeners();
     }
   }
 
-  Future<void> setOutlet(String mac, int outlet, bool on) async {
+  Future<bool> _sendOutlet(String mac, int outlet, bool on) async {
     final client = api;
-    if (client == null) return;
-    await client.setOutlet(mac, outlet, on);
-    await refresh(silent: true);
+    if (client == null) throw const VoltraException('Connect to Voltra first.');
+    final key = '$mac:$outlet';
+    if (busyOutlets.contains(key)) return false;
+    busyOutlets.add(key);
+    _pendingOutlets[key] = on;
+    _refreshSerial++; // Discard stale polls started before this control command.
+    _applyOutlet(overview, mac, outlet, on);
+    notifyListeners();
+    try {
+      final result = await client.setOutlet(mac, outlet, on);
+      final metrics = result['metrics'];
+      if (metrics is! Map || metrics['last_command_confirmed'] != true) {
+        throw const VoltraException('Command sent, but relay state was not verified. Refresh to check.');
+      }
+      return true;
+    } finally {
+      busyOutlets.remove(key);
+      _pendingOutlets.remove(key);
+      notifyListeners();
+    }
+  }
+
+  Future<void> setOutlet(String mac, int outlet, bool on) async {
+    try {
+      await _sendOutlet(mac, outlet, on);
+    } finally {
+      await refresh(silent: true);
+    }
   }
 
   Future<void> setAll(Map<String, dynamic> strip, bool on) async {
     final mac = strip['mac']?.toString() ?? '';
+    if (mac.isEmpty) throw const VoltraException('Missing strip MAC address.');
     final outlets = (strip['outlets'] as List? ?? const []);
+    final targets = <int>[];
     for (var channel = 1; channel <= 4; channel++) {
       Map? current;
       for (final item in outlets) {
@@ -201,8 +263,23 @@ class AppController extends ChangeNotifier {
           break;
         }
       }
-      if ((current?['relay'] == true) == on) continue;
-      await setOutlet(mac, channel, on);
+      if ((current?['relay'] == true) != on) targets.add(channel);
+    }
+    // Preserve device protocol ordering; avoid four full API refreshes.
+    var failures = 0;
+    try {
+      for (final channel in targets) {
+        try {
+          if (!await _sendOutlet(mac, channel, on)) failures++;
+        } catch (_) {
+          failures++;
+        }
+      }
+    } finally {
+      await refresh(silent: true);
+    }
+    if (failures > 0) {
+      throw VoltraException('$failures outlet command(s) failed or could not be verified.');
     }
   }
 
