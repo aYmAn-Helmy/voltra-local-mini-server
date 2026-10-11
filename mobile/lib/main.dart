@@ -935,6 +935,7 @@ class StripCard extends StatelessWidget {
         : online
             ? 'ONLINE'
             : 'OFFLINE';
+    final busyStrip = [1, 2, 3, 4].any((channel) => controller.outletBusy(strip["mac"]?.toString() ?? "", channel));
     final health = strip['health'] is Map
         ? (strip['health'] as Map)['status']?.toString() ?? 'unknown'
         : 'unknown';
@@ -999,6 +1000,7 @@ class StripCard extends StatelessWidget {
                     channel: channel,
                     data: outlet(channel),
                     enabled: online && enabled,
+                    busy: controller.outletBusy(strip["mac"]?.toString() ?? "", channel),
                     onToggle: (value) => _toggle(context, channel, value),
                   ),
               ],
@@ -1009,7 +1011,7 @@ class StripCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed:
-                        online && enabled ? () => _setAll(context, true) : null,
+                        online && enabled && !busyStrip ? () => _setAll(context, true) : null,
                     icon: const Icon(Icons.power_rounded, size: 17),
                     label: const Text('Turn all on'),
                     style: OutlinedButton.styleFrom(
@@ -1023,7 +1025,7 @@ class StripCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed:
-                        online && enabled ? () => _setAll(context, false) : null,
+                        online && enabled && !busyStrip ? () => _setAll(context, false) : null,
                     icon: const Icon(Icons.power_off_rounded, size: 17),
                     label: const Text('Turn all off'),
                     style: OutlinedButton.styleFrom(
@@ -1044,11 +1046,13 @@ class _OutletTile extends StatelessWidget {
   final int channel;
   final Map<String, dynamic>? data;
   final bool enabled;
+  final bool busy;
   final ValueChanged<bool> onToggle;
   const _OutletTile({
     required this.channel,
     required this.data,
     required this.enabled,
+    required this.busy,
     required this.onToggle,
   });
 
@@ -1066,7 +1070,7 @@ class _OutletTile extends StatelessWidget {
         ),
       ),
       child: InkWell(
-        onTap: enabled ? () => onToggle(!on) : null,
+        onTap: enabled && !busy ? () => onToggle(!on) : null,
         borderRadius: BorderRadius.circular(15),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -1084,7 +1088,12 @@ class _OutletTile extends StatelessWidget {
                     width: 2,
                   ),
                 ),
-                child: Icon(
+                child: busy
+                    ? const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
                   Icons.power_rounded,
                   size: 17,
                   color:
@@ -1101,7 +1110,7 @@ class _OutletTile extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                on ? 'ON · ${power.toStringAsFixed(1)} W' : 'OFF',
+                busy ? 'Switching…' : on ? 'ON · ${power.toStringAsFixed(1)} W' : 'OFF',
                 style: TextStyle(
                   color:
                       on ? const Color(0xFF39E27D) : const Color(0xFF737D92),
@@ -1809,8 +1818,20 @@ class _AddStripPageState extends State<AddStripPage> {
   final names = <String, TextEditingController>{};
   final ssid = TextEditingController();
   final password = TextEditingController();
-  final serverIp = TextEditingController(text: '192.168.1.45');
+  final serverIp = TextEditingController();
   final deviceIp = TextEditingController(text: '192.168.1.1');
+
+  @override
+  void initState() {
+    super.initState();
+    // Only suggest a real LAN IPv4 from the currently connected local server.
+    final uri = Uri.tryParse(widget.controller.baseUrl);
+    final host = uri?.host ?? '';
+    if (uri?.scheme == 'http' &&
+        RegExp(r'^\d{1,3}(\.\d{1,3}){3}$').hasMatch(host)) {
+      serverIp.text = host;
+    }
+  }
 
   @override
   void dispose() {
