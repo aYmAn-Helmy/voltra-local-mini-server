@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Miqaat is an intentionally tokenless, LAN-only Voltra build.
 COMPOSE_FILE="docker-compose.casaos.build.yml"
 ENV_FILE=".env.casaos"
 DATA_DIR="/DATA/AppData/Voltra/data"
-PUBLIC_ORIGIN="https://b8710ce04869.sn.mynetname.net"
-TRUSTED_PROXY="192.168.1.7/32"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is required. Run this on the CasaOS host."
@@ -17,73 +16,51 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "Python 3 is required to generate the Voltra API token."
-  exit 1
+# Do not silently replace a modified checkout or switch back to main.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "Uncommitted tracked changes exist. Back up/commit before installing miqaat."
+    exit 1
+  fi
+  git fetch origin miqaat
+  if [ "$(git branch --show-current)" != "miqaat" ]; then
+    if git show-ref --verify --quiet refs/heads/miqaat; then
+      git switch miqaat
+    else
+      git switch --track -c miqaat origin/miqaat
+    fi
+  fi
+  git pull --ff-only origin miqaat
 fi
 
 mkdir -p "$DATA_DIR"
-
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  echo "Updating Voltra source from origin/main..."
-  git fetch origin main
-  git pull --ff-only origin main
-fi
-
-SOURCE_VERSION="$(sed -n 's/^__version__ = "\\(.*\\)"/\\1/p' voltra_local/__init__.py | head -n1)"
-echo "Source version: ${SOURCE_VERSION:-unknown}"
-
 if [ ! -f "$ENV_FILE" ]; then
-  TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-  cat > "$ENV_FILE" <<EOF
-VOLTRA_API_TOKEN=$TOKEN
-VOLTRA_TRUSTED_PROXY=$TRUSTED_PROXY
-VOLTRA_PUBLIC_ORIGIN=$PUBLIC_ORIGIN
-VOLTRA_CORS_ORIGIN=$PUBLIC_ORIGIN
+  cat > "$ENV_FILE" <<'EOF'
+# Voltra Miqaat; no API token or public proxy configuration.
+VOLTRA_TIMEZONE=Africa/Cairo
 VOLTRA_POLL_INTERVAL=10
 VOLTRA_DIAGNOSTICS_INTERVAL=30
 VOLTRA_TELEMETRY_INTERVAL=60
-VOLTRA_TIMEZONE=Africa/Cairo
-VOLTRA_DISCOVERY_PORT=10087
 EOF
   chmod 600 "$ENV_FILE"
-  echo "Created secure $ENV_FILE with a random API token."
+  echo "Created tokenless local configuration: $ENV_FILE"
 else
-  if ! grep -q '^VOLTRA_API_TOKEN=.' "$ENV_FILE"; then
-    TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
-    printf '\nVOLTRA_API_TOKEN=%s\n' "$TOKEN" >> "$ENV_FILE"
-    echo "Added a random API token to existing $ENV_FILE."
-  fi
-  if ! grep -q '^VOLTRA_TRUSTED_PROXY=' "$ENV_FILE"; then
-    printf 'VOLTRA_TRUSTED_PROXY=%s\n' "$TRUSTED_PROXY" >> "$ENV_FILE"
-  fi
-  if ! grep -q '^VOLTRA_PUBLIC_ORIGIN=' "$ENV_FILE"; then
-    printf 'VOLTRA_PUBLIC_ORIGIN=%s\n' "$PUBLIC_ORIGIN" >> "$ENV_FILE"
-  fi
-  if grep -Fxq 'VOLTRA_CORS_ORIGIN=*' "$ENV_FILE"; then
-    sed -i "s#^VOLTRA_CORS_ORIGIN=\\*$#VOLTRA_CORS_ORIGIN=$PUBLIC_ORIGIN#" "$ENV_FILE"
-  fi
-  chmod 600 "$ENV_FILE"
-  echo "Using existing $ENV_FILE with secure remote-access migration."
+  echo "Preserving existing $ENV_FILE. Miqaat ignores any old API token and public-origin variables."
 fi
 
+# Keep /DATA/AppData/Voltra/data intact: NEVER run docker compose down -v.
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --build
 
-HOST_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')"
+HOST_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}' || true)"
 if [ -z "$HOST_IP" ]; then
-  HOST_IP="$(hostname -I 2>/dev/null | tr ' ' '\n' | awk '
-    /^127\./ {next}
-    /^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\./ {next}
-    {print; exit}
-  ')"
+  HOST_IP="$(hostname -I 2>/dev/null | tr ' ' '\n' | awk '/^127\./ {next} {print; exit}' || true)"
 fi
 
 echo
-echo "Voltra is starting."
-echo "Dashboard: http://${HOST_IP:-CASAOS-IP}:8086/voltra"
+echo "Voltra Miqaat ready (LAN-only; no API token)."
+echo "Dashboard: http://${HOST_IP:-CASAOS-IP}:8086/voltra/"
 echo "Device TCP: ${HOST_IP:-CASAOS-IP}:10086"
-echo "Voltra-X Discovery: UDP ${HOST_IP:-CASAOS-IP}:10087"
+echo "Discovery: UDP ${HOST_IP:-CASAOS-IP}:10087"
 echo
-echo "Use the CasaOS LAN IP as server IP when provisioning MTTL-W01 strips."
-echo "Remote API token is stored in $ENV_FILE (mode 600)."
-echo "View it locally with: grep '^VOLTRA_API_TOKEN=' $ENV_FILE"
+echo "IMPORTANT: Disable any Internet-facing NAT/port forwarding or reverse proxy"
+echo "that publishes Voltra. Use a VPN for remote access."
