@@ -4,7 +4,7 @@ Local-first server for LG U+ / TONLY MTTL-W01 smart power strips.
 
 ## Current release
 
-**v0.21.0**
+**v0.22.0 — Miqaat (LAN-only, no API token)**
 
 Key capabilities:
 
@@ -20,7 +20,7 @@ Key capabilities:
 - Backup/restore for Voltra configuration and automation
 - Audit log and write rate limiting
 - Separate TCP and HTTP bind addresses
-- Optional bearer-token authentication for safe HTTPS reverse-proxy exposure
+- Miqaat branch: no API token is requested, generated or used; HTTP is restricted to LAN peers and local Host names
 - React + TypeScript + Vite professional UI served directly from `/voltra/`
 - Mobile-first smart-home dashboard with total-power hero, quick actions, search and 2x2 outlet tiles
 - Dedicated Consumption, Automation, Rooms/Mapping, Add/Provision and Settings views
@@ -30,30 +30,25 @@ Key capabilities:
 - Server-side Rooms, Favorites, ordering, Scenes and energy/alert settings
 - Voltra-X LAN discovery on UDP 10087
 
-## Secure remote HTTPS access
+## Miqaat — local network only, without API token
 
-Voltra can remain local-first while the HTTP dashboard/API is published through a trusted HTTPS reverse proxy. The MTTL-W01 device TCP port `10086` and discovery UDP port `10087` must remain LAN-only.
+This **miqaat** branch runs the Voltra server without any API Token. Its HTTP
+dashboard, outlet controls, energy data and automation are available from the
+**same trusted LAN** without Bearer authentication. Keep the device ports
+(TCP 10086 and UDP 10087) on LAN only as well.
 
-Generate a token:
+The HTTP server rejects public Host names, proxy-forwarded headers and browser
+cross-origin requests. **These checks do not replace a firewall.** Disable
+any existing WAN port forwarding or reverse proxy for Voltra at your router;
+a reverse proxy can otherwise hide a remote user's real address. Remote control
+should go through a private VPN (e.g. WireGuard), not unauthenticated Internet HTTP.
 
-```bash
-python scripts/generate_api_token.py
-```
+Miqaat intentionally ignores previously saved `VOLTRA_API_TOKEN`,
+`VOLTRA_TRUSTED_PROXY`, `VOLTRA_PUBLIC_ORIGIN` and `VOLTRA_CORS_ORIGIN`.
+The original token-protected remote setup remains available on `main`
+and other branches; do not use their public deployment steps with Miqaat.
 
-Configure the server:
-
-```dotenv
-VOLTRA_API_TOKEN=PASTE_GENERATED_TOKEN_HERE
-VOLTRA_TRUSTED_PROXY=192.168.1.7/32
-VOLTRA_PUBLIC_ORIGIN=https://b8710ce04869.sn.mynetname.net:8443
-VOLTRA_CORS_ORIGIN=https://b8710ce04869.sn.mynetname.net:8443
-```
-
-When a token is configured, `/health` remains public and all `/api/*` plus `/voltra/api/*` endpoints require a Bearer token. Forwarded client/protocol headers are trusted only from `VOLTRA_TRUSTED_PROXY`.
-
-The current upstream router cannot forward external TCP 443 because its own HTTPS management occupies that port. The verified public endpoint is therefore `https://b8710ce04869.sn.mynetname.net:8443`, forwarded as WAN `8443` -> MikroTik `192.168.1.7:443`.
-
-Deployment details for the current RouterOS 7.24.5 setup are in `docs/mikrotik-https.md`.
+[Complete Miqaat install and rollback guide](docs/miqaat.md).
 
 ## Professional web UI
 
@@ -128,15 +123,15 @@ control, voltage, Wi-Fi RSSI, energy telemetry, schedules, health, and live upda
 
 The repository now includes a CasaOS-oriented deployment:
 
-- `docker-compose.casaos.yml` — CasaOS metadata + prebuilt GHCR image
-- `docker-compose.casaos.build.yml` — local build fallback
+- `docker-compose.casaos.yml` — CasaOS metadata + local Miqaat build
+- `docker-compose.casaos.build.yml` — recommended local Miqaat build
 - `casaos/install.sh` — one-command local installer
 - persistent data at `/DATA/AppData/Voltra/data`
 
 Recommended first install on a CasaOS host:
 
 ```bash
-git clone https://github.com/aYmAn-Helmy/voltra-local-mini-server.git
+git clone --branch miqaat https://github.com/aYmAn-Helmy/voltra-local-mini-server.git
 cd voltra-local-mini-server
 chmod +x casaos/install.sh
 ./casaos/install.sh
@@ -162,14 +157,9 @@ Voltra-X discovers the server on:
 CASAOS-LAN-IP:10087/UDP
 ```
 
-A multi-architecture image is also built for `amd64` and `arm64`:
-
-```text
-ghcr.io/ayman-helmy/voltra-local-mini-server:latest
-```
-
-If the GHCR package is private, authenticate Docker with a GitHub token that has
-`read:packages`, or use the local-build installer above.
+This branch is built from source on the CasaOS host. **Do not use the
+`ghcr.io/ayman-helmy/voltra-local-mini-server:latest` image** as a substitute:
+that image is not guaranteed to contain the Miqaat LAN-only changes.
 
 ## Real hardware on CasaOS / Docker
 
@@ -246,10 +236,6 @@ Important environment variables:
 - `VOLTRA_HTTP_PORT`
 - `VOLTRA_DISCOVERY_PORT`
 - `VOLTRA_TIMEZONE`
-- `VOLTRA_CORS_ORIGIN`
-- `VOLTRA_API_TOKEN`
-- `VOLTRA_TRUSTED_PROXY`
-- `VOLTRA_PUBLIC_ORIGIN`
 - `VOLTRA_POLL_INTERVAL`
 - `VOLTRA_DIAGNOSTICS_INTERVAL`
 - `VOLTRA_TELEMETRY_INTERVAL`
