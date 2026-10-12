@@ -2,7 +2,11 @@ name: voltra
 
 services:
   voltra:
-    image: ghcr.io/ayman-helmy/voltra-local-mini-server:latest
+    # This branch is built locally; GHCR latest points to a different server.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: voltra-local-mini-server:miqaat
     container_name: voltra
     restart: unless-stopped
     environment:
@@ -13,10 +17,6 @@ services:
       VOLTRA_HTTP_PORT: "8086"
       VOLTRA_TCP_PORT: "10086"
       VOLTRA_DISCOVERY_PORT: "10087"
-      VOLTRA_CORS_ORIGIN: "${VOLTRA_CORS_ORIGIN:-*}"
-      VOLTRA_API_TOKEN: "${VOLTRA_API_TOKEN:-}"
-      VOLTRA_TRUSTED_PROXY: "${VOLTRA_TRUSTED_PROXY:-}"
-      VOLTRA_PUBLIC_ORIGIN: "${VOLTRA_PUBLIC_ORIGIN:-}"
       VOLTRA_POLL_INTERVAL: "${VOLTRA_POLL_INTERVAL:-10}"
       VOLTRA_DIAGNOSTICS_INTERVAL: "${VOLTRA_DIAGNOSTICS_INTERVAL:-30}"
       VOLTRA_TELEMETRY_INTERVAL: "${VOLTRA_TELEMETRY_INTERVAL:-60}"
