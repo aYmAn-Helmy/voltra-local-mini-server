@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 import ipaddress
+from urllib.parse import urlsplit
 from typing import Iterable
 
 
@@ -53,6 +54,55 @@ class RemoteAccessSecurity:
             return str(ipaddress.ip_address(first))
         except ValueError:
             return str(peer_ip)
+
+    @staticmethod
+    def is_local_peer(peer_ip: str) -> bool:
+        """Allow loopback, RFC1918 LAN and IPv6 unique-local peers."""
+        try:
+            address = ipaddress.ip_address(str(peer_ip))
+        except ValueError:
+            return False
+        if address.version == 4:
+            networks = (
+                ipaddress.ip_network("127.0.0.0/8"),
+                ipaddress.ip_network("10.0.0.0/8"),
+                ipaddress.ip_network("172.16.0.0/12"),
+                ipaddress.ip_network("192.168.0.0/16"),
+            )
+            return any(address in network for network in networks)
+        return address.is_loopback or address in ipaddress.ip_network("fc00::/7")
+
+    @staticmethod
+    def is_local_host(host_header: str | None) -> bool:
+        """Reject public Host names in no-token LAN installations (DNS rebinding guard)."""
+        try:
+            host = urlsplit("http://" + str(host_header or "")).hostname
+        except ValueError:
+            return False
+        if not host:
+            return False
+        if host == "localhost" or host.endswith((".local", ".lan", ".home.arpa")):
+            return True
+        try:
+            return RemoteAccessSecurity.is_local_peer(host)
+        except ValueError:
+            return False
+
+    @staticmethod
+    def same_origin_host(host_header: str | None, origin: str | None) -> bool:
+        """Disallow cross-origin browser writes to a tokenless server."""
+        if not origin:
+            return True
+        try:
+            origin_parts = urlsplit(origin)
+            host_parts = urlsplit("http://" + str(host_header or ""))
+        except ValueError:
+            return False
+        return (
+            origin_parts.scheme in {"http", "https"}
+            and origin_parts.hostname == host_parts.hostname
+            and origin_parts.port == host_parts.port
+        )
 
     def request_scheme(self, peer_ip: str, forwarded_proto: str | None) -> str:
         if self.is_trusted_proxy(peer_ip):
