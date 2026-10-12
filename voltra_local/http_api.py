@@ -550,7 +550,8 @@ class APIHandler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
     def _common_headers(self):
-        self.send_header("Access-Control-Allow-Origin", self.app.cors_origin)
+        if self.app.cors_origin:
+            self.send_header("Access-Control-Allow-Origin", self.app.cors_origin)
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "SAMEORIGIN")
