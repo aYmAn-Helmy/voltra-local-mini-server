@@ -59,7 +59,27 @@ class APIHandler(BaseHTTPRequestHandler):
     def app(self) -> "VoltraHTTPServer":
         return self.server  # type: ignore[return-value]
 
+    def _allow_local_request(self) -> bool:
+        if not self.app.lan_only:
+            return True
+        peer = self.client_address[0]
+        host = self.headers.get("Host")
+        forwarded = any(self.headers.get(key) for key in (
+            "Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto",
+        ))
+        if (
+            not self.app.security.is_local_peer(peer)
+            or not self.app.security.is_local_host(host)
+            or forwarded
+            or not self.app.security.same_origin_host(host, self.headers.get("Origin"))
+        ):
+            self._json(403, {"error": "miqaat is LAN-only: proxy/public/cross-origin access blocked"})
+            return False
+        return True
+
     def do_OPTIONS(self):
+        if not self._allow_local_request():
+            return
         self.send_response(204)
         self._common_headers()
         self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
@@ -68,6 +88,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         try:
+            if not self._allow_local_request():
+                return
             split = urlsplit(self.path)
             path = split.path
             query = parse_qs(split.query)
@@ -169,6 +191,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         try:
+            if not self._allow_local_request():
+                return
             path = urlsplit(self.path).path
             if self._requires_auth(path) and not self._authorize():
                 return
@@ -298,6 +322,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         try:
+            if not self._allow_local_request():
+                return
             path = urlsplit(self.path).path
             if self._requires_auth(path) and not self._authorize():
                 return
@@ -354,6 +380,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         try:
+            if not self._allow_local_request():
+                return
             path = urlsplit(self.path).path
             if self._requires_auth(path) and not self._authorize():
                 return
@@ -478,7 +506,8 @@ class APIHandler(BaseHTTPRequestHandler):
             content_type += "; charset=utf-8"
 
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", self.app.cors_origin)
+        if self.app.cors_origin:
+            self.send_header("Access-Control-Allow-Origin", self.app.cors_origin)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "SAMEORIGIN")
         if self.app.security.request_scheme(
@@ -553,6 +582,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
         api_token: str = "",
         trusted_proxy: str = "",
         public_origin: str = "",
+        lan_only: bool = False,
     ):
         self.mttl = mttl
         self.store = store
@@ -563,6 +593,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
         self.event_bus = event_bus
         self.security = RemoteAccessSecurity(api_token, trusted_proxy)
         self.public_origin = str(public_origin or "").rstrip("/")
+        self.lan_only = bool(lan_only)
         self.rate_limit_per_minute = max(1, min(int(rate_limit_per_minute), 10000))
         self._rate_lock = threading.RLock()
         self._rate_windows: dict[str, deque] = defaultdict(deque)
@@ -786,6 +817,7 @@ def start_http(
     api_token: str = "",
     trusted_proxy: str = "",
     public_origin: str = "",
+    lan_only: bool = False,
 ):
     store = store or ConfigStore("data/voltra.json")
     server = VoltraHTTPServer(
@@ -801,6 +833,7 @@ def start_http(
         api_token=api_token,
         trusted_proxy=trusted_proxy,
         public_origin=public_origin,
+        lan_only=lan_only,
     )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
