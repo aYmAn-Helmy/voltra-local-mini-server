@@ -3,6 +3,7 @@ import type {
   EnergyHistory,
   EnergySummary,
   Overview,
+  Outlet,
   Settings,
 } from "./types";
 
@@ -60,7 +61,7 @@ export const api = {
   settings: () => request<Settings>(`${API}/settings`),
 
   setOutlet: (mac: string, outlet: number, on: boolean) =>
-    request(`${API}/strips/${encodeURIComponent(mac)}/outlets/${outlet}/state`, {
+    request<{ metrics?: { last_command_confirmed?: boolean | null; last_command_latency_ms?: number | null }; outlets?: Outlet[] }>(`${API}/strips/${encodeURIComponent(mac)}/outlets/${outlet}/state`, {
       method: "POST",
       body: JSON.stringify({ on }),
     }),

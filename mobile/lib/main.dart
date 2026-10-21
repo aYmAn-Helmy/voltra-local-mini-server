@@ -24,17 +24,29 @@ class _VoltraMobileAppState extends State<VoltraMobileApp>
   final controller = AppController();
   final security = SecurityController();
   bool booting = true;
+  String? startupError;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    Future.wait([
-      controller.initialize(),
-      security.initialize(),
-    ]).whenComplete(() {
-      if (mounted) setState(() => booting = false);
-    });
+    _initializeControllers();
+  }
+
+  Future<void> _initializeControllers() async {
+    try {
+      await Future.wait([controller.initialize(), security.initialize()]);
+      if (mounted) setState(() { startupError = null; booting = false; });
+    } catch (error, stackTrace) {
+      debugPrint('Voltra startup failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        setState(() {
+          startupError = error.toString();
+          booting = false;
+        });
+      }
+    }
   }
 
   @override
@@ -126,7 +138,44 @@ class _VoltraMobileAppState extends State<VoltraMobileApp>
       ),
       home: booting
           ? const _BootScreen()
-          : AnimatedBuilder(
+          : startupError != null
+              ? Scaffold(
+                  body: SafeArea(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.error_outline_rounded,
+                                color: Color(0xFFFF7380), size: 44),
+                            const SizedBox(height: 16),
+                            const Text('Voltra could not start',
+                                style: TextStyle(fontSize: 20,
+                                    fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 10),
+                            SelectableText(startupError!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 12)),
+                            const SizedBox(height: 20),
+                            FilledButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  booting = true;
+                                  startupError = null;
+                                });
+                                _initializeControllers();
+                              },
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('Retry startup'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : AnimatedBuilder(
               animation: security,
               builder: (context, _) {
                 if (security.enabled && !security.unlocked) {
@@ -487,7 +536,7 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomePage(controller: widget.controller),
+      HomePage(controller: widget.controller, onOpenSettings: () => setState(() => index = 3)),
       EnergyPage(controller: widget.controller),
       AutomationPage(controller: widget.controller),
       SettingsPage(
@@ -590,7 +639,8 @@ class _MainShellState extends State<MainShell> {
 
 class HomePage extends StatefulWidget {
   final AppController controller;
-  const HomePage({super.key, required this.controller});
+  final VoidCallback onOpenSettings;
+  const HomePage({super.key, required this.controller, required this.onOpenSettings});
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -635,7 +685,7 @@ class _HomePageState extends State<HomePage> {
         children: [
           Card(
             child: InkWell(
-              onTap: () {},
+              onTap: widget.onOpenSettings,
               borderRadius: BorderRadius.circular(22),
               child: Padding(
                 padding: const EdgeInsets.all(13),
@@ -935,6 +985,7 @@ class StripCard extends StatelessWidget {
         : online
             ? 'ONLINE'
             : 'OFFLINE';
+    final busyStrip = [1, 2, 3, 4].any((channel) => controller.outletBusy(strip["mac"]?.toString() ?? "", channel));
     final health = strip['health'] is Map
         ? (strip['health'] as Map)['status']?.toString() ?? 'unknown'
         : 'unknown';
@@ -999,6 +1050,7 @@ class StripCard extends StatelessWidget {
                     channel: channel,
                     data: outlet(channel),
                     enabled: online && enabled,
+                    busy: controller.outletBusy(strip["mac"]?.toString() ?? "", channel),
                     onToggle: (value) => _toggle(context, channel, value),
                   ),
               ],
@@ -1009,7 +1061,7 @@ class StripCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed:
-                        online && enabled ? () => _setAll(context, true) : null,
+                        online && enabled && !busyStrip ? () => _setAll(context, true) : null,
                     icon: const Icon(Icons.power_rounded, size: 17),
                     label: const Text('Turn all on'),
                     style: OutlinedButton.styleFrom(
@@ -1023,7 +1075,7 @@ class StripCard extends StatelessWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed:
-                        online && enabled ? () => _setAll(context, false) : null,
+                        online && enabled && !busyStrip ? () => _setAll(context, false) : null,
                     icon: const Icon(Icons.power_off_rounded, size: 17),
                     label: const Text('Turn all off'),
                     style: OutlinedButton.styleFrom(
@@ -1044,11 +1096,13 @@ class _OutletTile extends StatelessWidget {
   final int channel;
   final Map<String, dynamic>? data;
   final bool enabled;
+  final bool busy;
   final ValueChanged<bool> onToggle;
   const _OutletTile({
     required this.channel,
     required this.data,
     required this.enabled,
+    required this.busy,
     required this.onToggle,
   });
 
@@ -1066,7 +1120,7 @@ class _OutletTile extends StatelessWidget {
         ),
       ),
       child: InkWell(
-        onTap: enabled ? () => onToggle(!on) : null,
+        onTap: enabled && !busy ? () => onToggle(!on) : null,
         borderRadius: BorderRadius.circular(15),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -1084,7 +1138,12 @@ class _OutletTile extends StatelessWidget {
                     width: 2,
                   ),
                 ),
-                child: Icon(
+                child: busy
+                    ? const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
                   Icons.power_rounded,
                   size: 17,
                   color:
@@ -1101,7 +1160,7 @@ class _OutletTile extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                on ? 'ON · ${power.toStringAsFixed(1)} W' : 'OFF',
+                busy ? 'Switching…' : on ? 'ON · ${power.toStringAsFixed(1)} W' : 'OFF',
                 style: TextStyle(
                   color:
                       on ? const Color(0xFF39E27D) : const Color(0xFF737D92),
@@ -1809,8 +1868,20 @@ class _AddStripPageState extends State<AddStripPage> {
   final names = <String, TextEditingController>{};
   final ssid = TextEditingController();
   final password = TextEditingController();
-  final serverIp = TextEditingController(text: '192.168.1.45');
+  final serverIp = TextEditingController();
   final deviceIp = TextEditingController(text: '192.168.1.1');
+
+  @override
+  void initState() {
+    super.initState();
+    // Only suggest a real LAN IPv4 from the currently connected local server.
+    final uri = Uri.tryParse(widget.controller.baseUrl);
+    final host = uri?.host ?? '';
+    if (uri?.scheme == 'http' &&
+        RegExp(r'^\d{1,3}(\.\d{1,3}){3}$').hasMatch(host)) {
+      serverIp.text = host;
+    }
+  }
 
   @override
   void dispose() {
