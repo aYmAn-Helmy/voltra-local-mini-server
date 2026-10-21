@@ -40,7 +40,6 @@ class OutletInfo:
     overheat_protection: bool
     power_raw: int
     power_w: float
-    current_a: float | None
     energy_wh: int
     energy_kwh: float
     previous_energy_wh: int
@@ -50,6 +49,7 @@ class OutletInfo:
     configuration_hex: str
     test_state: int
     fixed_value: int
+    current_a: float | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
