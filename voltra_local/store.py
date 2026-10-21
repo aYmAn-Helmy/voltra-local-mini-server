@@ -35,6 +35,10 @@ class ConfigStore:
                 "voltage_min_v": 200.0,
                 "voltage_max_v": 250.0,
                 "unusual_power_w": 1500.0,
+                "alert_max_total_power_w": 3000.0,
+                "alert_max_total_current_a": 12.0,
+                "alert_max_temperature_c": 75.0,
+                "alert_auto_off_enabled": False,
             },
         }
 
@@ -518,6 +522,20 @@ class ConfigStore:
                 raise ValueError("voltage_min_v must be below voltage_max_v")
             if "unusual_power_w" in value:
                 settings["unusual_power_w"] = max(1.0, min(float(value["unusual_power_w"]), 50000.0))
+            for key, low, high in (
+                ("alert_max_total_power_w", 100.0, 5000.0),
+                ("alert_max_total_current_a", 1.0, 16.0),
+                ("alert_max_temperature_c", 40.0, 95.0),
+            ):
+                if key in value:
+                    number = float(value[key])
+                    if not low <= number <= high or not __import__("math").isfinite(number):
+                        raise ValueError(f"{key} must be within {low}..{high}")
+                    settings[key] = number
+            if "alert_auto_off_enabled" in value:
+                if type(value["alert_auto_off_enabled"]) is not bool:
+                    raise ValueError("alert_auto_off_enabled must be boolean")
+                settings["alert_auto_off_enabled"] = value["alert_auto_off_enabled"]
             self._save_locked()
             return dict(settings)
 
