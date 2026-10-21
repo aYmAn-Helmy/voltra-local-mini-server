@@ -197,6 +197,7 @@ class DeviceSession:
                         (value := parse_power_report(frame))
                         and value[0] == ch and 0 <= value[1] <= 20_000
                     ),
+                    timeout=0.8,
                 )
             except (TimeoutError, RuntimeError, OSError):
                 # Unsupported/failed measurement must not leave stale current.
@@ -210,7 +211,7 @@ class DeviceSession:
         self._last_diagnostics_monotonic = time.monotonic()
         return self.snapshot()
 
-    def request(self, command: str, predicate: Callable[[str], bool]) -> str:
+    def request(self, command: str, predicate: Callable[[str], bool], *, timeout: float | None = None) -> str:
         if self.closed.is_set():
             raise RuntimeError("device is offline")
         started = time.monotonic()
@@ -223,7 +224,7 @@ class DeviceSession:
                     self._pending_event = event
                     self._pending_result = None
                 self._send_line(command)
-                if not event.wait(self.server.response_timeout):
+                if not event.wait(self.server.response_timeout if timeout is None else timeout):
                     with self._pending_lock:
                         self._pending_predicate = None
                         self._pending_event = None
