@@ -219,7 +219,6 @@ class SetupScreen extends StatefulWidget {
 
 class _SetupScreenState extends State<SetupScreen> {
   final manual = TextEditingController();
-  final accessToken = TextEditingController();
   List<ServerCandidate> found = [];
   bool scanning = false;
 
@@ -232,7 +231,6 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   void dispose() {
     manual.dispose();
-    accessToken.dispose();
     super.dispose();
   }
 
@@ -259,10 +257,7 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   Future<void> connect(String url) async {
-    await widget.controller.connect(
-      url,
-      apiToken: accessToken.text.trim(),
-    );
+    await widget.controller.connect(url);
     if (widget.controller.error != null && mounted) {
       _toast(widget.controller.error!, error: true);
     }
@@ -291,7 +286,7 @@ class _SetupScreenState extends State<SetupScreen> {
             ),
             const SizedBox(height: 12),
             const Text(
-              'Connect locally over LAN or securely through your MikroTik HTTPS address. No external Voltra cloud account is required.',
+              'Connect directly to your Miqaat server on the same Wi-Fi or LAN. No account or access token is required.',
               style: TextStyle(
                 color: Color(0xFF8993A7),
                 fontSize: 13,
@@ -333,8 +328,8 @@ class _SetupScreenState extends State<SetupScreen> {
             ),
             const SizedBox(height: 18),
             const _SectionTitle(
-              eyebrow: 'MANUAL / REMOTE',
-              title: 'Connect by URL',
+              eyebrow: 'MANUAL LAN IP',
+              title: 'Connect by server IP',
             ),
             const SizedBox(height: 10),
             TextField(
@@ -343,20 +338,8 @@ class _SetupScreenState extends State<SetupScreen> {
               autocorrect: false,
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.dns_rounded),
-                hintText: 'https://b8710ce04869.sn.mynetname.net',
-                labelText: 'Voltra server URL',
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: accessToken,
-              obscureText: true,
-              enableSuggestions: false,
-              autocorrect: false,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.key_rounded),
-                labelText: 'Access token (if enabled)',
-                helperText: 'Stored securely on this device',
+                hintText: '192.168.1.45:8086',
+                labelText: 'Miqaat LAN server IP',
               ),
             ),
             const SizedBox(height: 12),
@@ -380,18 +363,18 @@ class _SetupScreenState extends State<SetupScreen> {
             const SizedBox(height: 18),
             const _InfoRow(
               icon: Icons.shield_outlined,
-              title: 'Local-first',
-              text: 'Strip commands stay on your network.',
+              title: 'No token required',
+              text: 'Connect and control devices on your trusted local network.',
             ),
             const _InfoRow(
-              icon: Icons.https_rounded,
-              title: 'HTTPS remote access',
-              text: 'Use your MikroTik public HTTPS URL when you are away from the LAN.',
+              icon: Icons.wifi_lock_rounded,
+              title: 'Local network only',
+              text: 'Connect your phone to the same Wi-Fi as the Miqaat server.',
             ),
             const _InfoRow(
               icon: Icons.cloud_off_outlined,
-              title: 'Local control remains available',
-              text: 'LAN discovery and local HTTP can still be used when Internet is unavailable.',
+              title: 'Internet not required',
+              text: 'LAN discovery and local server control work without cloud access.',
             ),
           ],
         ),
@@ -2119,12 +2102,7 @@ class SettingsPage extends StatelessWidget {
                 _SettingsLine(
                   icon: Icons.shield_outlined,
                   label: 'Connection',
-                  value: controller.usingHttps ? 'HTTPS / remote ready' : 'Local LAN',
-                ),
-                _SettingsLine(
-                  icon: Icons.key_rounded,
-                  label: 'Access token',
-                  value: controller.apiTokenConfigured ? 'Configured securely' : 'Not configured',
+                  value: 'Local LAN · no token',
                 ),
               ],
             ),
@@ -2192,10 +2170,10 @@ class SettingsPage extends StatelessWidget {
         SecuritySettingsCard(security: security),
         const SizedBox(height: 18),
         const _InfoRow(
-          icon: Icons.lock_outline_rounded,
-          title: 'Secure remote access',
+          icon: Icons.wifi_lock_rounded,
+          title: 'Trusted LAN only',
           text:
-              'HTTPS protects transport and the optional server access token authenticates protected API requests.',
+              'This Miqaat version works without an access token. Keep the server on your private LAN and never expose it to the Internet.',
         ),
       ],
     );

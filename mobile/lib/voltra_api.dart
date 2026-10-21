@@ -36,22 +36,16 @@ class ServerCandidate {
 class VoltraApi {
   VoltraApi(
     String baseUrl, {
-    String? apiToken,
     http.Client? client,
   })  : baseUrl = _normalize(baseUrl),
-        apiToken = apiToken?.trim() ?? '',
         _client = client ?? _buildClient();
 
   final String baseUrl;
-  final String apiToken;
   final http.Client _client;
 
-  bool get hasApiToken => apiToken.isNotEmpty;
-  bool get isHttps => Uri.tryParse(baseUrl)?.scheme.toLowerCase() == 'https';
-
+  // Miqaat uses an unauthenticated, LAN-only API: never send credentials.
   Map<String, String> _headers({bool json = false}) => {
         if (json) 'content-type': 'application/json',
-        if (apiToken.isNotEmpty) 'authorization': 'Bearer $apiToken',
       };
   static const _magic = 'VOLTRAX_DISCOVER';
 
@@ -62,16 +56,48 @@ class VoltraApi {
     return http.Client();
   }
 
+  static bool isLocalHost(String host) {
+    final value = host.toLowerCase();
+    if (value == 'localhost' ||
+        value.endsWith('.local') ||
+        value.endsWith('.lan') ||
+        value.endsWith('.home.arpa')) {
+      return true;
+    }
+    final address = InternetAddress.tryParse(value);
+    if (address == null) return false;
+    if (address.isLoopback) return true;
+    if (address.type == InternetAddressType.IPv6) {
+      return value.startsWith('fc') || value.startsWith('fd');
+    }
+    if (address.type != InternetAddressType.IPv4) return false;
+    final octets = address.rawAddress;
+    return octets[0] == 10 ||
+        (octets[0] == 172 && octets[1] >= 16 && octets[1] <= 31) ||
+        (octets[0] == 192 && octets[1] == 168);
+  }
+
   static String _normalize(String value) {
-    var result = value.trim();
-    if (result.isEmpty) return result;
-    if (!result.startsWith('http://') && !result.startsWith('https://')) {
-      result = 'http://$result';
+    var input = value.trim();
+    if (input.isEmpty) {
+      throw const VoltraException('Enter your Voltra local server IP.');
     }
-    while (result.endsWith('/')) {
-      result = result.substring(0, result.length - 1);
+    if (!input.contains('://')) input = 'http://$input';
+    final uri = Uri.tryParse(input);
+    if (uri == null ||
+        !{'http', 'https'}.contains(uri.scheme.toLowerCase()) ||
+        !uri.hasAuthority ||
+        uri.userInfo.isNotEmpty ||
+        (uri.path.isNotEmpty && uri.path != '/') ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        !isLocalHost(uri.host)) {
+      throw const VoltraException(
+        'Miqaat works on the local network only. Enter a private server IP, '
+        'for example 192.168.1.45:8086.',
+      );
     }
-    return result;
+    return uri.replace(path: '', query: null, fragment: null).toString().replaceFirst(RegExp(r'/$'), '');
   }
 
   Uri _uri(String path, [Map<String, String>? query]) =>
@@ -134,7 +160,7 @@ class VoltraApi {
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final fallback = response.statusCode == 401
-          ? 'Authentication required. Check the Voltra access token.'
+          ? 'This server requires authentication. Connect to your tokenless Miqaat LAN server.'
           : 'Request failed (${response.statusCode}).';
       throw VoltraException(
         payload['error']?.toString() ?? fallback,
@@ -427,7 +453,10 @@ class VoltraApi {
         try {
           final decoded = jsonDecode(utf8.decode(datagram!.data));
           if (decoded is! Map<String, dynamic>) continue;
-          if (decoded['service'] != 'voltra-x') continue;
+          if (decoded['service'] != 'voltra-x' ||
+              !isLocalHost(datagram.address.address)) {
+            continue;
+          }
           final candidate = ServerCandidate(
             host: datagram.address.address,
             httpPort: int.tryParse('${decoded['http_port']}') ?? 8086,
