@@ -53,6 +53,7 @@ class TelemetryStore:
                 "at": now,
                 "mac": str(mac),
                 "voltage_v": device.get("voltage_v"),
+                "total_current_a": device.get("total_current_a"),
                 "wifi_rssi_dbm": device.get("wifi_rssi_dbm"),
                 "total_power_w": round(sum(float(x.get("power_w") or 0) for x in outlets), 3),
                 "energy_kwh": round(sum(float(x.get("energy_kwh") or 0) for x in outlets), 6),
@@ -60,6 +61,7 @@ class TelemetryStore:
                     {
                         "channel": x.get("channel"),
                         "power_w": x.get("power_w"),
+                        "current_a": x.get("current_a"),
                         "energy_kwh": x.get("energy_kwh"),
                         "relay": x.get("relay"),
                     }
