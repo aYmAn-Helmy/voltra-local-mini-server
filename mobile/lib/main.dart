@@ -628,6 +628,9 @@ class _HomePageState extends State<HomePage> {
     }
     final schedules =
         (controller.automation['schedules'] as Map?)?.length ?? 0;
+    final alerts = controller.overview?['alerts'] is List
+        ? (controller.overview!['alerts'] as List)
+        : const [];
 
     return RefreshIndicator(
       onRefresh: controller.refresh,
@@ -681,6 +684,19 @@ class _HomePageState extends State<HomePage> {
             outlets: '$outletOn/$outletTotal',
             plans: '$schedules',
           ),
+          if (alerts.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFCA78)),
+                title: Text('${alerts.length} active power warning(s)'),
+                subtitle: Text(
+                  alerts.take(2).map((a) => a is Map ? (a['kind'] ?? 'warning').toString().replaceAll('_', ' ') : 'warning').join(' · '),
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           const _QuickGrid(),
           const SizedBox(height: 14),
@@ -978,7 +994,8 @@ class StripCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${_num(strip['total_power_w']).toStringAsFixed(1)} W',
+                  '${_num(strip['total_power_w']).toStringAsFixed(1)} W'
+                  '${strip['total_current_a'] is num ? ' · ${(strip['total_current_a'] as num).toStringAsFixed(3)} A' : ''}',
                   style: const TextStyle(
                     color: Color(0xFF39E27D),
                     fontSize: 11,
@@ -1061,6 +1078,8 @@ class _OutletTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final on = data?['relay'] == true;
     final power = _num(data?['power_w']);
+    final current = data?['current_a'];
+    final currentSuffix = current is num ? ' · ${current.toStringAsFixed(3)} A' : '';
     return Material(
       color: on ? const Color(0xFF15332D) : const Color(0xFF151E30),
       shape: RoundedRectangleBorder(
@@ -1111,7 +1130,7 @@ class _OutletTile extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                busy ? 'Switching…' : on ? 'ON · ${power.toStringAsFixed(1)} W' : 'OFF',
+                busy ? 'Switching…' : on ? 'ON · ${power.toStringAsFixed(1)} W$currentSuffix' : 'OFF',
                 style: TextStyle(
                   color:
                       on ? const Color(0xFF39E27D) : const Color(0xFF737D92),
