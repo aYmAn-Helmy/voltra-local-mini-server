@@ -24,17 +24,29 @@ class _VoltraMobileAppState extends State<VoltraMobileApp>
   final controller = AppController();
   final security = SecurityController();
   bool booting = true;
+  String? startupError;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    Future.wait([
-      controller.initialize(),
-      security.initialize(),
-    ]).whenComplete(() {
-      if (mounted) setState(() => booting = false);
-    });
+    _initializeControllers();
+  }
+
+  Future<void> _initializeControllers() async {
+    try {
+      await Future.wait([controller.initialize(), security.initialize()]);
+      if (mounted) setState(() { startupError = null; booting = false; });
+    } catch (error, stackTrace) {
+      debugPrint('Voltra startup failed: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        setState(() {
+          startupError = error.toString();
+          booting = false;
+        });
+      }
+    }
   }
 
   @override
@@ -126,7 +138,44 @@ class _VoltraMobileAppState extends State<VoltraMobileApp>
       ),
       home: booting
           ? const _BootScreen()
-          : AnimatedBuilder(
+          : startupError != null
+              ? Scaffold(
+                  body: SafeArea(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.error_outline_rounded,
+                                color: Color(0xFFFF7380), size: 44),
+                            const SizedBox(height: 16),
+                            const Text('Voltra could not start',
+                                style: TextStyle(fontSize: 20,
+                                    fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 10),
+                            SelectableText(startupError!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 12)),
+                            const SizedBox(height: 20),
+                            FilledButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  booting = true;
+                                  startupError = null;
+                                });
+                                _initializeControllers();
+                              },
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('Retry startup'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : AnimatedBuilder(
               animation: security,
               builder: (context, _) {
                 if (security.enabled && !security.unlocked) {
