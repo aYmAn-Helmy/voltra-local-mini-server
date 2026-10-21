@@ -7,6 +7,12 @@ BOOTINFO_PREFIX = "up:bootinfo:"
 GETINFO_PREFIX = "up:getinfo:"
 GETINFO_REQUEST = "up:getinfo:all"
 POWER_VOLTAGE_REQUEST = "up:power_report:1:vol"
+
+
+def power_current_request(channel: int) -> str:
+    if channel not in (1, 2, 3, 4):
+        raise ValueError("current channel must be 1..4")
+    return f"up:power_report:{channel}:current"
 WIFI_RSSI_REQUEST = "up:query:wifirssi"
 
 _BOOTINFO_RE = re.compile(
@@ -34,6 +40,7 @@ class OutletInfo:
     overheat_protection: bool
     power_raw: int
     power_w: float
+    current_a: float | None
     energy_wh: int
     energy_kwh: float
     previous_energy_wh: int
@@ -147,6 +154,7 @@ def parse_getinfo(frame: str) -> list[OutletInfo] | None:
                 overheat_protection=overheat,
                 power_raw=power_raw,
                 power_w=power_raw / 1000.0,
+                current_a=None,
                 energy_wh=energy_wh,
                 energy_kwh=energy_wh / 1000.0,
                 previous_energy_wh=previous_energy_wh,
