@@ -123,6 +123,25 @@ class MQTTBridge:
                             "payload_on": "ON", "payload_off": "OFF", "device": device}),
                         retain=True,
                     )
+                for ch in range(1, 5):
+                    for slug, name, unit, device_class in [
+                        ("current", "Current", "A", "current"),
+                        ("power", "Power", "W", "power"),
+                        ("energy", "Energy", "kWh", "energy"),
+                        ("temperature", "Temperature", "°C", "temperature"),
+                    ]:
+                        self._send(
+                            f"homeassistant/sensor/voltra_{mac}_{ch}_{slug}/config",
+                            json.dumps({"name": f"Outlet {ch} {name}",
+                                "unique_id": f"voltra_{mac}_outlet_{ch}_{slug}",
+                                "state_topic": f"{root}/outlet/{ch}/{slug}",
+                                "availability_topic": f"{root}/availability",
+                                "unit_of_measurement": unit,
+                                "device_class": device_class,
+                                "state_class": "total_increasing" if slug == "energy" else "measurement",
+                                "device": device}),
+                            retain=True,
+                        )
                 for slug, name, unit, device_class in [
                     ("voltage", "Voltage", "V", "voltage"),
                     ("current", "Total Current", "A", "current"),
@@ -145,6 +164,15 @@ class MQTTBridge:
                 if ch not in (1, 2, 3, 4):
                     continue
                 self._send(f"{root}/outlet/{ch}/state", "ON" if outlet.get("relay") else "OFF", retain=True)
+                for slug, field in [
+                    ("current", "current_a"),
+                    ("power", "power_w"),
+                    ("energy", "energy_kwh"),
+                    ("temperature", "temperature_c"),
+                ]:
+                    value = outlet.get(field)
+                    if value is not None:
+                        self._send(f"{root}/outlet/{ch}/{slug}", str(value), retain=True)
             for slug, value in [
                 ("voltage", strip.get("voltage_v")),
                 ("current", strip.get("total_current_a")),
