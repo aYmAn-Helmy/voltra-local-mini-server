@@ -12,6 +12,8 @@ from .demo_device import run_demo_device
 from .discovery import DiscoveryResponder
 from .events import EventBus
 from .http_api import start_http
+from .mqtt_bridge import MQTTBridge
+from .safety import SafetyMonitor
 from .store import ConfigStore
 from .tcp_server import MTTLServer
 from .telemetry import TelemetryStore
@@ -108,6 +110,12 @@ def main() -> None:
     )
     automation.start()
 
+    mqtt_host = os.getenv("VOLTRA_MQTT_HOST", "").strip()
+    mqtt_port = env_int("VOLTRA_MQTT_PORT", 1883)
+    mqtt_user = os.getenv("VOLTRA_MQTT_USERNAME", "")
+    mqtt_password = os.getenv("VOLTRA_MQTT_PASSWORD", "")
+    matter_enabled = env_bool("VOLTRA_MATTER_MQTT", False)
+
     http = start_http(
         mttl,
         http_bind,
@@ -124,6 +132,23 @@ def main() -> None:
         public_origin=public_origin,
         lan_only=True,
     )
+    safety = SafetyMonitor(snapshot_provider=http.list_strips,
+                           settings_provider=store.settings,
+                           command_executor=lambda mac, channel, on: automation_command(mac, channel, on, "safety"),
+                           audit=audit, event_bus=event_bus)
+    http.safety = safety
+    safety.start()
+    mqtt = None
+    if mqtt_host:
+        mqtt = MQTTBridge(host=mqtt_host, port=mqtt_port,
+                          username=mqtt_user, password=mqtt_password,
+                          snapshot_provider=http.list_strips,
+                          command_executor=lambda mac, channel, on: automation_command(mac, channel, on, "mqtt"),
+                          matter_enabled=matter_enabled, audit=audit)
+        mqtt.start()
+        print(f"[MQTT] Home Assistant Discovery enabled at {mqtt_host}:{mqtt_port}; Matter={matter_enabled}")
+    elif matter_enabled:
+        print("[MQTT] Matterbridge disabled: VOLTRA_MQTT_HOST is missing")
     discovery = DiscoveryResponder(
         port=discovery_port,
         http_port=http_port,
@@ -141,6 +166,9 @@ def main() -> None:
         stop.set()
         print("[APP] shutting down")
         automation.stop()
+        if mqtt:
+            mqtt.stop()
+        safety.stop()
         discovery.stop()
         telemetry.stop()
         http.shutdown()
