@@ -111,7 +111,7 @@ class MainActivity : FlutterFragmentActivity() {
             request.append("Host: ").append(hostHeader).append("\r\n")
             request.append("Connection: close\r\n")
             request.append("Accept: application/json\r\n")
-            request.append("User-Agent: Voltra-Mobile/1.3.1 (Android)\r\n")
+            request.append("User-Agent: Voltra-Mobile/1.4.1-Miqaat-LAN (Android)\r\n")
 
             for ((name, value) in headers) {
                 val lower = name.lowercase(Locale.US)
