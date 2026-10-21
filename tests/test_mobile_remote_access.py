@@ -6,14 +6,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class MobileRemoteAccessSourceTests(unittest.TestCase):
-    def test_mobile_version_and_secure_token_storage(self):
+    def test_miqaat_mobile_local_only_without_token(self):
         pubspec = (ROOT / "mobile" / "pubspec.yaml").read_text(encoding="utf-8")
         controller = (ROOT / "mobile" / "lib" / "app_controller.dart").read_text(encoding="utf-8")
         api = (ROOT / "mobile" / "lib" / "voltra_api.dart").read_text(encoding="utf-8")
-        self.assertIn("version: 1.4.0+7", pubspec)
-        self.assertIn("voltra.api.token.secure", controller)
+        self.assertIn("version: 1.4.1+8", pubspec)
+        self.assertIn("voltra.api.token.secure", controller)  # erase only the legacy secret
+        self.assertIn("_secureStorage.delete(key: _legacyTokenKey)", controller)
         self.assertIn("FlutterSecureStorage", controller)
-        self.assertIn("'authorization': 'Bearer $apiToken'", api)
+        self.assertNotIn("Bearer", api)
+        self.assertNotIn("apiToken:", api)
+        self.assertIn("isLocalHost", api)
         self.assertNotIn("badCertificateCallback", api)
 
     def test_direct_strip_provisioning_is_phone_side(self):
@@ -29,7 +32,7 @@ class MobileRemoteAccessSourceTests(unittest.TestCase):
     def test_https_is_supported_without_tls_bypass(self):
         api = (ROOT / "mobile" / "lib" / "voltra_api.dart").read_text(encoding="utf-8")
         self.assertIn("https://", api)
-        self.assertIn("Uri.tryParse(baseUrl)", api)
+        self.assertIn("Uri.tryParse(input)", api)
         self.assertIn("AndroidNativeHttpClient", api)
 
     def test_android_native_transport_keeps_tls_verification(self):
