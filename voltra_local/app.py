@@ -7,6 +7,7 @@ import threading
 
 from . import __version__
 from .audit import AuditLog
+from .alerts import AlertMonitor
 from .automation import AutomationEngine
 from .demo_device import run_demo_device
 from .discovery import DiscoveryResponder
@@ -123,6 +124,9 @@ def main() -> None:
         )
         mqtt.start()
 
+    alerts = AlertMonitor(mttl.list_devices, event_bus, audit, settings_provider=store.settings)
+    alerts.start()
+
     http = start_http(
         mttl,
         http_bind,
@@ -156,6 +160,7 @@ def main() -> None:
         stop.set()
         print("[APP] shutting down")
         automation.stop()
+        alerts.stop()
         if mqtt is not None:
             mqtt.stop()
         discovery.stop()
