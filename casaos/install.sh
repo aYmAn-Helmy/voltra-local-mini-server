@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Miqaat is an intentionally tokenless, LAN-only Voltra build.
+# Miqaat priority integrations: tokenless LAN-only Voltra with optional MQTT bridge.
+SOURCE_BRANCH="feature/miqaat-priority-integrations"
 COMPOSE_FILE="docker-compose.casaos.build.yml"
 ENV_FILE=".env.casaos"
 DATA_DIR="/DATA/AppData/Voltra/data"
@@ -22,15 +23,15 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "Uncommitted tracked changes exist. Back up/commit before installing miqaat."
     exit 1
   fi
-  git fetch origin miqaat
-  if [ "$(git branch --show-current)" != "miqaat" ]; then
-    if git show-ref --verify --quiet refs/heads/miqaat; then
-      git switch miqaat
+  git fetch origin "$SOURCE_BRANCH"
+  if [ "$(git branch --show-current)" != "$SOURCE_BRANCH" ]; then
+    if git show-ref --verify --quiet "refs/heads/$SOURCE_BRANCH"; then
+      git switch "$SOURCE_BRANCH"
     else
-      git switch --track -c miqaat origin/miqaat
+      git switch --track -c "$SOURCE_BRANCH" "origin/$SOURCE_BRANCH"
     fi
   fi
-  git pull --ff-only origin miqaat
+  git pull --ff-only origin "$SOURCE_BRANCH"
 fi
 
 mkdir -p "$DATA_DIR"
