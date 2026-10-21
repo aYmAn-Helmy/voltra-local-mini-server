@@ -28,7 +28,13 @@ def discovery_messages(strip: dict) -> dict[str, dict]:
               "sw_version": str(strip.get("firmware_version") or "")}
     online = {"availability_topic": root + "/availability",
               "payload_available": "online", "payload_not_available": "offline"}
-    messages: dict[str, dict] = {}
+    messages: dict[str, dict] = {
+        f"homeassistant/binary_sensor/voltra_{mac.lower()}_safety/config": {
+            "name": "Power safety warning", "unique_id": f"voltra_{mac.lower()}_safety",
+            "state_topic": root + "/safety_warning", "payload_on": "ON", "payload_off": "OFF",
+            "device_class": "problem", "device": device, **online,
+        }
+    }
     for channel in range(1, 5):
         base = f"voltra_{mac.lower()}_{channel}"
         messages[f"homeassistant/switch/{base}/config"] = {
@@ -128,6 +134,7 @@ class MQTTBridge:
                 self._send(topic, payload)
             online = bool(strip.get("online") and strip.get("enabled") and strip.get("state") == "active")
             self._send(root + "/availability", "online" if online else "offline")
+            self._send(root + "/safety_warning", "ON" if strip.get("safety_alert_active") else "OFF")
             if not online:
                 continue
             for key in ("voltage_v", "total_current_a", "wifi_rssi_dbm"):
@@ -179,6 +186,9 @@ class MQTTBridge:
         self._connected.clear()
 
     def _on_message(self, client, userdata, message):
+        if message.retain:
+            # Retained command topics could otherwise replay unsafe actions on reconnect.
+            return
         parsed = self.parse_command(message.topic, message.payload, matter_enabled=self.matter_enabled)
         if parsed is None:
             return
@@ -195,7 +205,9 @@ class MQTTBridge:
             except queue.Empty:
                 continue
             try:
-                self.command_executor(mac, channel, on)
+                result = self.command_executor(mac, channel, on)
+                if result.get("metrics", {}).get("last_command_confirmed") is not True:
+                    raise RuntimeError("relay state could not be verified")
             except Exception as exc:
                 # Do not publish intended ON/OFF as the confirmed physical state.
                 if self.audit:
