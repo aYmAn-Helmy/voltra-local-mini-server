@@ -199,7 +199,10 @@ class DeviceSession:
                     ),
                 )
             except (TimeoutError, RuntimeError, OSError):
-                # Older firmware variants may not expose this diagnostic.
+                # Unsupported/failed measurement must not leave stale current.
+                if channel in self.outlets:
+                    self.outlets[channel].current_a = None
+                self.total_current_a = None
                 continue
         if not self._control_pending.is_set():
             self.request(WIFI_RSSI_REQUEST, lambda frame: parse_wifi_rssi(frame) is not None)
@@ -323,8 +326,11 @@ class DeviceSession:
                 current = self.outlets.get(channel)
                 if current is not None:
                     current.current_a = round(raw_value / 1000.0, 3)
-                    self.total_current_a = round(
-                        sum(o.current_a for o in self.outlets.values() if o.current_a is not None), 3
+                    measured = [self.outlets.get(ch) for ch in (1, 2, 3, 4)]
+                    self.total_current_a = (
+                        round(sum(o.current_a for o in measured), 3)
+                        if all(o is not None and o.current_a is not None for o in measured)
+                        else None
                     )
                     self.last_current_at = utc_now()
                     self.last_diagnostics_at = self.last_current_at
