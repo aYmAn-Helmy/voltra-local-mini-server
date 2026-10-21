@@ -100,6 +100,10 @@ class SafetyMonitor:
                 candidates[(entry["mac"], kind, outlet)] = entry
         actions: list[tuple[str, tuple[str, str, int]]] = []
         with self._lock:
+            # Two *consecutive* distinct high readings are required; a normal
+            # reading resets even an alert that has not fired yet.
+            for key in set(self._samples) - set(candidates):
+                self._samples.pop(key, None)
             for key in set(self._alerts) - set(candidates):
                 event = self._alerts.pop(key)
                 self._acted.discard(key)
