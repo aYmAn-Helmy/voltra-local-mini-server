@@ -2,6 +2,26 @@
 
 Native Android controller for the Voltra Local Mini Server.
 
+## v1.4.1 — Android startup crash fix
+
+The initial v1.4.0+7 test-signed APK could display a red `NoSuchMethodError`
+for `SharedPreferencesApiRegistrar.getAll` at startup on real Android devices.
+The fix removes `shared_preferences` / `shared_preferences_android` entirely
+from the APK. Saved server address and API token continue to use
+`flutter_secure_storage`. An Android platform-channel bridge reads the
+pre-v1.2 legacy `FlutterSharedPreferences` URL once (key
+`flutter.voltra.server`) and deletes it after saving the value securely.
+The PIN/biometric unlock, existing HTTPS connection, provisioning, controls
+and all other features are retained.
+
+A release APK smoke check should ensure that launching on Android reaches
+the connection/setup or existing dashboard screen without a platform error.
+
+**Important:** Test-signed PR APKs may not be signed with the same key as an
+already installed build. An Android `INSTALL_FAILED_UPDATE_INCOMPATIBLE` is
+a signing mismatch, not a server issue. Preserve URL/token/PIN details before
+uninstalling an older test-signed app.
+
 ## v1.3.2 — direct strip provisioning from Android
 
 v1.3.2 fixes new-strip onboarding when the Voltra server is Ethernet-only. The Android phone now talks directly to the MTTL-W01 setup service on `192.168.1.1:30300` while the phone is connected to the temporary `TONLY_TAP...` Wi-Fi. It sends the Voltra server LAN IP first and the target 2.4 GHz Wi-Fi credentials second, using a fresh TCP connection for each command.
