@@ -692,6 +692,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
                 "last_event_at": (current or {}).get("last_event_at"),
                 "last_event": (current or {}).get("last_event"),
                 "health": health,
+                "safety_alert_active": any(a["mac"] == mac for a in getattr(self, "safety", None).active()) if getattr(self, "safety", None) else False,
                 "metrics": (current or {}).get("metrics") or {},
                 "outlets": outlets,
                 "mapped_devices": mapped_devices,
