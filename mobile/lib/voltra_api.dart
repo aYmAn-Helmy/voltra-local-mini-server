@@ -454,7 +454,9 @@ class VoltraApi {
           final decoded = jsonDecode(utf8.decode(datagram!.data));
           if (decoded is! Map<String, dynamic>) continue;
           if (decoded['service'] != 'voltra-x' ||
-              !isLocalHost(datagram.address.address)) continue;
+              !isLocalHost(datagram.address.address)) {
+            continue;
+          }
           final candidate = ServerCandidate(
             host: datagram.address.address,
             httpPort: int.tryParse('${decoded['http_port']}') ?? 8086,
