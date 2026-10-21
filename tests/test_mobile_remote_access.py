@@ -31,7 +31,7 @@ class MobileRemoteAccessSourceTests(unittest.TestCase):
 
     def test_https_is_supported_without_tls_bypass(self):
         api = (ROOT / "mobile" / "lib" / "voltra_api.dart").read_text(encoding="utf-8")
-        self.assertIn("https://", api)
+        self.assertIn("'https'", api)  # HTTPS is accepted for LAN hostnames only
         self.assertIn("Uri.tryParse(input)", api)
         self.assertIn("AndroidNativeHttpClient", api)
 
