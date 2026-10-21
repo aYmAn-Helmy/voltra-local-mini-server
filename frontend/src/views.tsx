@@ -861,6 +861,10 @@ export function SettingsView({
   useEffect(() => setSettings(overview.settings), [overview.settings]);
 
   async function save() {
+    if (settings.alert_auto_off_enabled && !overview.settings.alert_auto_off_enabled &&
+        !window.confirm(t(locale, "Confirm software shutdown: not certified electrical protection; it may fail if offline. Enable anyway?"))) {
+      return;
+    }
     try {
       setBusy(true);
       await api.updateSettings(settings);
