@@ -112,4 +112,38 @@ void main() {
     expect(channelOn(ctrl, 1), true);
     ctrl.dispose();
   });
+  test('Android safety settings are saved by a real PUT and refreshed', () async {
+    var updates = 0;
+    final client = MockClient((request) async {
+      if (request.method == 'PUT' && request.url.path == '/voltra/api/settings') {
+        updates++;
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['alert_auto_off_enabled'], false);
+        expect(body['alert_max_total_current_a'], 12.0);
+        return http.Response(jsonEncode(body), 200);
+      }
+      if (request.url.path.endsWith('/overview')) {
+        return http.Response(jsonEncode({
+          ...state(false),
+          'settings': {
+            'alert_max_total_current_a': 12,
+            'alert_auto_off_enabled': false,
+          },
+        }), 200);
+      }
+      return http.Response(jsonEncode({'schedules': {}, 'rules': {}, 'queue': []}), 200);
+    });
+    final ctrl = AppController();
+    ctrl.api = VoltraApi('http://127.0.0.1:8086', client: client);
+    await ctrl.updateSafetySettings({
+      'alert_max_total_current_a': 12.0,
+      'alert_max_total_power_w': 3000.0,
+      'alert_max_temperature_c': 75.0,
+      'alert_auto_off_enabled': false,
+    });
+    expect(updates, 1);
+    expect(ctrl.overview?['settings']['alert_max_total_current_a'], 12);
+    ctrl.dispose();
+  });
+
 }
