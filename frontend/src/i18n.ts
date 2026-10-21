@@ -189,7 +189,18 @@ const arabic: Record<string, string> = {
   "No matching devices": "لا توجد أجهزة مطابقة",
   "Try another search or connection filter.": "جرّب بحثًا أو فلترًا مختلفًا.",
   "Add your first MTTL-W01 strip to start monitoring.": "أضف أول مشترك MTTL-W01 لبدء المراقبة.",
-  "Command sent; outlet state is not verified yet.": "تم إرسال الأمر لكن لم يتم تأكيد حالة المخرج بعد.",};
+  "Command sent; outlet state is not verified yet.": "تم إرسال الأمر لكن لم يتم تأكيد حالة المخرج بعد.",
+  "Active power alerts": "تنبيهات الطاقة النشطة",
+  "SAFETY MONITOR": "مراقبة السلامة",
+  "Software alerts are not certified electrical protection.": "التنبيهات البرمجية ليست بديلاً عن الحماية الكهربائية المعتمدة.",
+  "Power alert threshold (W)": "حد تنبيه القدرة (وات)",
+  "Current alert threshold (A)": "حد تنبيه التيار (أمبير)",
+  "Temperature alert threshold (°C)": "حد تنبيه الحرارة (°م)",
+  "Optional software shutdown (not physical overload protection)": "فصل برمجي اختياري (ليس حماية كهربائية معتمدة)",
+  "Disabled (recommended)": "معطل (موصى به)",
+  "Enabled after two fresh readings": "مفعّل بعد قراءتين حديثتين منفصلتين",
+  "Software monitoring is not a substitute for certified electrical safety protection.": "المراقبة البرمجية لا تحل محل الحماية الكهربائية المعتمدة.",
+};
 
 export function t(locale: Locale, text: string): string {
   return locale === "ar" ? arabic[text] || text : text;
