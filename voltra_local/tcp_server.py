@@ -21,6 +21,7 @@ from .protocol import (
     parse_getinfo,
     parse_onoff,
     parse_power_report,
+    power_current_request,
     parse_wifi_rssi,
 )
 
@@ -42,6 +43,8 @@ class DeviceSession:
         self.last_event_at: str | None = None
         self.last_event: dict | None = None
         self.voltage_v: float | None = None
+        self.total_current_a: float | None = None
+        self.last_current_at: str | None = None
         self.wifi_rssi_dbm: int | None = None
         self.outlets: dict[int, OutletInfo] = {}
         self._last_diagnostics_monotonic = 0.0
@@ -102,6 +105,8 @@ class DeviceSession:
             "last_info_at": self.last_info_at,
             "last_diagnostics_at": self.last_diagnostics_at,
             "voltage_v": self.voltage_v,
+            "total_current_a": self.total_current_a,
+            "last_current_at": self.last_current_at,
             "wifi_rssi_dbm": self.wifi_rssi_dbm,
             "last_event_at": self.last_event_at,
             "last_event": self.last_event,
@@ -180,7 +185,24 @@ class DeviceSession:
                 and 50_000 <= value[1] <= 300_000
             ),
         )
-        self.request(WIFI_RSSI_REQUEST, lambda frame: parse_wifi_rssi(frame) is not None)
+        # Each native current response identifies its channel. Query them one at
+        # a time so a voltage reply or a stale frame never satisfies a current read.
+        for channel in (1, 2, 3, 4):
+            if self._control_pending.is_set():
+                break
+            try:
+                self.request(
+                    power_current_request(channel),
+                    lambda frame, ch=channel: bool(
+                        (value := parse_power_report(frame))
+                        and value[0] == ch and 0 <= value[1] <= 20_000
+                    ),
+                )
+            except (TimeoutError, RuntimeError, OSError):
+                # Older firmware variants may not expose this diagnostic.
+                continue
+        if not self._control_pending.is_set():
+            self.request(WIFI_RSSI_REQUEST, lambda frame: parse_wifi_rssi(frame) is not None)
         self.last_diagnostics_at = utc_now()
         self._last_diagnostics_monotonic = time.monotonic()
         return self.snapshot()
@@ -282,6 +304,10 @@ class DeviceSession:
 
         info = parse_getinfo(frame)
         if info is not None:
+            for item in info:
+                previous = self.outlets.get(item.channel)
+                if previous is not None:
+                    item.current_a = previous.current_a
             self.outlets = {item.channel: item for item in info}
             self.last_info_at = utc_now()
             if getattr(self.server, "event_bus", None):
@@ -289,10 +315,22 @@ class DeviceSession:
 
         power_report = parse_power_report(frame)
         if power_report is not None:
-            _, raw_value = power_report
+            channel, raw_value = power_report
             if 50_000 <= raw_value <= 300_000:
                 self.voltage_v = round(raw_value / 1000.0, 1)
                 self.last_diagnostics_at = utc_now()
+            elif channel in (1, 2, 3, 4) and 0 <= raw_value <= 20_000:
+                current = self.outlets.get(channel)
+                if current is not None:
+                    current.current_a = round(raw_value / 1000.0, 3)
+                    self.total_current_a = round(
+                        sum(o.current_a for o in self.outlets.values() if o.current_a is not None), 3
+                    )
+                    self.last_current_at = utc_now()
+                    self.last_diagnostics_at = self.last_current_at
+                    if getattr(self.server, "event_bus", None):
+                        self.server.event_bus.publish("device_current", mac=self.mac, channel=channel,
+                                                      current_a=current.current_a, total_current_a=self.total_current_a)
 
         rssi = parse_wifi_rssi(frame)
         if rssi is not None:
