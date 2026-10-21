@@ -56,12 +56,12 @@ class HighPriorityTests(unittest.TestCase):
         bridge._connected = True
         bridge.publish_snapshot()
         calls = sink.publish.call_args_list
-        self.assertEqual(sum("/config" in c.args[0] for c in calls), 7)
+        self.assertEqual(sum("/config" in c.args[0] for c in calls), 23)
         self.assertIn("voltra/D8AA59D28888/outlet/1/state", [c.args[0] for c in calls])
         self.assertIn("voltra/D8AA59D28888/sensor/current", [c.args[0] for c in calls])
         self.assertIn("0.85", [c.args[1] for c in calls])
         bridge.publish_snapshot()
-        self.assertEqual(sum("/config" in c.args[0] for c in sink.publish.call_args_list), 7)
+        self.assertEqual(sum("/config" in c.args[0] for c in sink.publish.call_args_list), 23)
 
 
 if __name__ == "__main__":
