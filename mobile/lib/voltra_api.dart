@@ -150,6 +150,9 @@ class VoltraApi {
   Future<Map<String, dynamic>> automation() =>
       getJson('/voltra/api/automation');
 
+  Future<Map<String, dynamic>> updateSettings(Map<String, dynamic> value) =>
+      sendJson('PUT', '/voltra/api/settings', value);
+
   Future<Map<String, dynamic>> setOutlet(
     String mac,
     int outlet,

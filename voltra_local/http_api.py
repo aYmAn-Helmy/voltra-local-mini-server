@@ -125,6 +125,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 return self._json(200, self.app.automation.snapshot() if self.app.automation else {"schedules": {}, "rules": {}, "queue": []})
             if path == "/voltra/api/scenes":
                 return self._json(200, {"scenes": self.app.store.scenes()})
+            if path == "/voltra/api/alerts":
+                safety = getattr(self.app, "safety", None)
+                return self._json(200, {"alerts": safety.active() if safety else []})
             if path == "/voltra/api/settings":
                 return self._json(200, self.app.store.settings())
             if path == "/voltra/api/energy":
@@ -681,11 +684,15 @@ class VoltraHTTPServer(ThreadingHTTPServer):
                 "connected_at": (current or {}).get("connected_at"),
                 "last_seen_at": (current or {}).get("last_seen_at") or meta.get("last_seen_at"),
                 "last_diagnostics_at": (current or {}).get("last_diagnostics_at"),
+                "last_info_at": (current or {}).get("last_info_at"),
+                "last_current_at": (current or {}).get("last_current_at"),
+                "total_current_a": (current or {}).get("total_current_a"),
                 "voltage_v": (current or {}).get("voltage_v"),
                 "wifi_rssi_dbm": (current or {}).get("wifi_rssi_dbm"),
                 "last_event_at": (current or {}).get("last_event_at"),
                 "last_event": (current or {}).get("last_event"),
                 "health": health,
+                "safety_alert_active": any(a["mac"] == mac for a in getattr(self, "safety", None).active()) if getattr(self, "safety", None) else False,
                 "metrics": (current or {}).get("metrics") or {},
                 "outlets": outlets,
                 "mapped_devices": mapped_devices,
@@ -721,6 +728,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
             "mappings": self.store.mappings(),
             "scenes": self.store.scenes(),
             "settings": self.store.settings(),
+            "alerts": getattr(self, "safety", None).active() if getattr(self, "safety", None) else [],
             "summary": {
                 "active_strips": len(active),
                 "online_strips": len(online),

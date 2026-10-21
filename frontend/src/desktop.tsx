@@ -180,7 +180,7 @@ export function DesktopDashboard({
       .toLocaleLowerCase()
       .includes(normalized);
   });
-  const hasAttention = strips.some((strip) => !strip.online || !strip.enabled || strip.health?.status === "critical");
+  const hasAttention = strips.some((strip) => !strip.online || !strip.enabled || strip.health?.status === "critical") || Boolean(overview.alerts?.length);
   const searching = Boolean(normalized) || filter !== "all";
 
   return (
@@ -197,6 +197,11 @@ export function DesktopDashboard({
         </span>
       </section>
 
+      {!!overview.alerts?.length && (
+        <div className="dw-health-label attention" role="alert" style={{ marginBottom: 16 }}>
+          <ShieldCheck size={16} /> {t(locale, "Active power alerts")}: {overview.alerts.length} — {overview.alerts.map((a) => a.kind.replaceAll("_", " ")).join(", ")}
+        </div>
+      )}
       <section className="dw-overview" aria-label="Power and connectivity overview">
         <div className="dw-hero">
           <div className="dw-hero-top">

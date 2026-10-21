@@ -4,7 +4,7 @@ Local-first server for LG U+ / TONLY MTTL-W01 smart power strips.
 
 ## Current release
 
-**v0.22.0 — Miqaat (LAN-only, no API token)**
+**v0.23.0 — Miqaat (LAN-only, no API token)**
 
 Key capabilities:
 

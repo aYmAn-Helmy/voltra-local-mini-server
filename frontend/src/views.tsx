@@ -143,6 +143,22 @@ export function DashboardView({
         </div>
       </section>
 
+      {!!overview.alerts?.length && (
+        <section className="surface-card" role="alert" aria-label={t(locale, "Active power alerts")}>
+          <div className="card-title-row">
+            <div><span className="eyebrow">{t(locale, "SAFETY MONITOR")}</span><h3>{t(locale, "Active power alerts")}: {overview.alerts.length}</h3></div>
+            <BellRing size={20} />
+          </div>
+          {overview.alerts.map((alert) => (
+            <p className="card-copy" key={`${alert.mac}:${alert.kind}:${alert.outlet}`}>
+              {overview.strips.find((x) => x.mac === alert.mac)?.name || alert.mac}
+              {alert.outlet ? ` · ${t(locale, "Outlet")} ${alert.outlet}` : ""}
+              : {alert.kind.replaceAll("_", " ")} — {alert.value} / {alert.threshold}
+            </p>
+          ))}
+          <small>{t(locale, "Software alerts are not certified electrical protection.")}</small>
+        </section>
+      )}
       <QuickActions onOpen={onNavigate} />
       <SearchBar value={search} onChange={onSearch} />
 
@@ -845,6 +861,10 @@ export function SettingsView({
   useEffect(() => setSettings(overview.settings), [overview.settings]);
 
   async function save() {
+    if (settings.alert_auto_off_enabled && !overview.settings.alert_auto_off_enabled &&
+        !window.confirm(t(locale, "Confirm software shutdown: not certified electrical protection; it may fail if offline. Enable anyway?"))) {
+      return;
+    }
     try {
       setBusy(true);
       await api.updateSettings(settings);
@@ -926,6 +946,17 @@ export function SettingsView({
           <label><span>{t(locale, "Unusual power W")}</span><input type="number" value={settings.unusual_power_w} onChange={(e) => setSettings({ ...settings, unusual_power_w: Number(e.target.value) })} /></label>
           <label><span>{t(locale, "Minimum voltage")}</span><input type="number" value={settings.voltage_min_v} onChange={(e) => setSettings({ ...settings, voltage_min_v: Number(e.target.value) })} /></label>
           <label><span>{t(locale, "Maximum voltage")}</span><input type="number" value={settings.voltage_max_v} onChange={(e) => setSettings({ ...settings, voltage_max_v: Number(e.target.value) })} /></label>
+          <label><span>{t(locale, "Power alert threshold (W)")}</span><input type="number" min="100" max="5000" value={settings.alert_max_total_power_w} onChange={(e) => setSettings({ ...settings, alert_max_total_power_w: Number(e.target.value) })} /></label>
+          <label><span>{t(locale, "Current alert threshold (A)")}</span><input type="number" min="1" max="16" step="0.1" value={settings.alert_max_total_current_a} onChange={(e) => setSettings({ ...settings, alert_max_total_current_a: Number(e.target.value) })} /></label>
+          <label><span>{t(locale, "Temperature alert threshold (°C)")}</span><input type="number" min="40" max="95" value={settings.alert_max_temperature_c} onChange={(e) => setSettings({ ...settings, alert_max_temperature_c: Number(e.target.value) })} /></label>
+          <label className="span-2">
+            <span>{t(locale, "Optional software shutdown (not physical overload protection)")}</span>
+            <select value={settings.alert_auto_off_enabled ? "yes" : "no"} onChange={(e) => setSettings({ ...settings, alert_auto_off_enabled: e.target.value === "yes" })}>
+              <option value="no">{t(locale, "Disabled (recommended)")}</option>
+              <option value="yes">{t(locale, "Enabled after two fresh readings")}</option>
+            </select>
+          </label>
+          <p className="card-copy span-2">{t(locale, "Software monitoring is not a substitute for certified electrical safety protection.")}</p>
         </div>
         <button className="button primary wide" disabled={busy} onClick={save}><Save size={17} />{t(locale, "Save settings")}</button>
       </section>

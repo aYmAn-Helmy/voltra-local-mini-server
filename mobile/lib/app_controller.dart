@@ -242,6 +242,13 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<void> updateSafetySettings(Map<String, dynamic> settings) async {
+    final client = api;
+    if (client == null) throw const VoltraException('Connect to Voltra first.');
+    await client.updateSettings(settings);
+    await refresh(silent: true);
+  }
+
   Future<void> setOutlet(String mac, int outlet, bool on) async {
     try {
       await _sendOutlet(mac, outlet, on);

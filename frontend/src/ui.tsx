@@ -259,7 +259,10 @@ function OutletTile({
       <span className="outlet-icon"><PlugZap size={17} /></span>
       <span className="outlet-name" dir="auto">{label}</span>
       <span className="outlet-state">{t(locale, on ? "ON" : "OFF")}</span>
-      <span className="outlet-power">{on ? `${Number(outlet?.power_w || 0).toFixed(1)} W` : " "}</span>
+      <span className="outlet-power">
+        {on ? `${Number(outlet?.power_w || 0).toFixed(1)} W` : " "}
+        {outlet?.current_a != null ? ` · ${Number(outlet.current_a).toFixed(3)} A` : ""}
+      </span>
     </button>
   );
 }
@@ -329,6 +332,7 @@ export function StripCard({
 
       <div className="diagnostic-row">
         <span><Gauge size={13} /> {strip.voltage_v == null ? "—" : `${Number(strip.voltage_v).toFixed(1)} V`}</span>
+        <span><Activity size={13} /> {strip.total_current_a == null ? "— A" : `${Number(strip.total_current_a).toFixed(3)} A`}</span>
         <span><Wifi size={13} /> {strip.wifi_rssi_dbm == null ? "—" : `${strip.wifi_rssi_dbm} dBm`}</span>
         <span><Sparkles size={13} /> {strip.health?.score ?? "—"}%</span>
       </div>

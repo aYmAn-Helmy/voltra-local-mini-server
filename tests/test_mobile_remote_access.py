@@ -10,7 +10,7 @@ class MobileRemoteAccessSourceTests(unittest.TestCase):
         pubspec = (ROOT / "mobile" / "pubspec.yaml").read_text(encoding="utf-8")
         controller = (ROOT / "mobile" / "lib" / "app_controller.dart").read_text(encoding="utf-8")
         api = (ROOT / "mobile" / "lib" / "voltra_api.dart").read_text(encoding="utf-8")
-        self.assertIn("version: 1.4.0+7", pubspec)
+        self.assertIn("version: 1.5.0+8", pubspec)
         self.assertIn("voltra.api.token.secure", controller)
         self.assertIn("FlutterSecureStorage", controller)
         self.assertIn("'authorization': 'Bearer $apiToken'", api)

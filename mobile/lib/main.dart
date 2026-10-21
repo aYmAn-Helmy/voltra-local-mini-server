@@ -628,6 +628,9 @@ class _HomePageState extends State<HomePage> {
     }
     final schedules =
         (controller.automation['schedules'] as Map?)?.length ?? 0;
+    final alerts = controller.overview?['alerts'] is List
+        ? (controller.overview!['alerts'] as List)
+        : const [];
 
     return RefreshIndicator(
       onRefresh: controller.refresh,
@@ -681,6 +684,19 @@ class _HomePageState extends State<HomePage> {
             outlets: '$outletOn/$outletTotal',
             plans: '$schedules',
           ),
+          if (alerts.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFCA78)),
+                title: Text('${alerts.length} active power warning(s)'),
+                subtitle: Text(
+                  alerts.take(2).map((a) => a is Map ? (a['kind'] ?? 'warning').toString().replaceAll('_', ' ') : 'warning').join(' · '),
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           const _QuickGrid(),
           const SizedBox(height: 14),
@@ -978,7 +994,8 @@ class StripCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${_num(strip['total_power_w']).toStringAsFixed(1)} W',
+                  '${_num(strip['total_power_w']).toStringAsFixed(1)} W'
+                  '${strip['total_current_a'] is num ? ' · ${(strip['total_current_a'] as num).toStringAsFixed(3)} A' : ''}',
                   style: const TextStyle(
                     color: Color(0xFF39E27D),
                     fontSize: 11,
@@ -1061,6 +1078,8 @@ class _OutletTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final on = data?['relay'] == true;
     final power = _num(data?['power_w']);
+    final current = data?['current_a'];
+    final currentSuffix = current is num ? ' · ${current.toStringAsFixed(3)} A' : '';
     return Material(
       color: on ? const Color(0xFF15332D) : const Color(0xFF151E30),
       shape: RoundedRectangleBorder(
@@ -1111,7 +1130,7 @@ class _OutletTile extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                busy ? 'Switching…' : on ? 'ON · ${power.toStringAsFixed(1)} W' : 'OFF',
+                busy ? 'Switching…' : on ? 'ON · ${power.toStringAsFixed(1)} W$currentSuffix' : 'OFF',
                 style: TextStyle(
                   color:
                       on ? const Color(0xFF39E27D) : const Color(0xFF737D92),
@@ -2184,6 +2203,13 @@ class SettingsPage extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         const _SectionTitle(
+          eyebrow: 'LIVE MONITORING',
+          title: 'Safety thresholds',
+        ),
+        const SizedBox(height: 10),
+        _SafetySettingsCard(controller: controller),
+        const SizedBox(height: 18),
+        const _SectionTitle(
           eyebrow: 'SECURITY',
           title: 'App lock',
         ),
@@ -2197,6 +2223,129 @@ class SettingsPage extends StatelessWidget {
               'HTTPS protects transport and the optional server access token authenticates protected API requests.',
         ),
       ],
+    );
+  }
+}
+
+class _SafetySettingsCard extends StatefulWidget {
+  final AppController controller;
+  const _SafetySettingsCard({required this.controller});
+
+  @override
+  State<_SafetySettingsCard> createState() => _SafetySettingsCardState();
+}
+
+class _SafetySettingsCardState extends State<_SafetySettingsCard> {
+  late final TextEditingController watts;
+  late final TextEditingController amps;
+  late final TextEditingController degrees;
+  bool autoOff = false;
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final settings = widget.controller.overview?['settings'];
+    final data = settings is Map ? settings : const {};
+    watts = TextEditingController(text: (data['alert_max_total_power_w'] ?? 3000).toString());
+    amps = TextEditingController(text: (data['alert_max_total_current_a'] ?? 12).toString());
+    degrees = TextEditingController(text: (data['alert_max_temperature_c'] ?? 75).toString());
+    autoOff = data['alert_auto_off_enabled'] == true;
+  }
+
+  @override
+  void dispose() {
+    watts.dispose();
+    amps.dispose();
+    degrees.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    final power = double.tryParse(watts.text.trim());
+    final current = double.tryParse(amps.text.trim());
+    final temperature = double.tryParse(degrees.text.trim());
+    if (power == null || power < 100 || power > 5000 ||
+        current == null || current < 1 || current > 16 ||
+        temperature == null || temperature < 40 || temperature > 95) {
+      _snack(context, 'Check W (100–5000), A (1–16), and °C (40–95) limits.', error: true);
+      return;
+    }
+    setState(() => saving = true);
+    try {
+      await widget.controller.updateSafetySettings({
+        'alert_max_total_power_w': power,
+        'alert_max_total_current_a': current,
+        'alert_max_temperature_c': temperature,
+        'alert_auto_off_enabled': autoOff,
+      });
+      if (mounted) _snack(context, 'Safety thresholds saved on the server.');
+    } catch (error) {
+      if (mounted) _snack(context, error.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> changeAutoOff(bool next) async {
+    if (!next) {
+      setState(() => autoOff = false);
+      return;
+    }
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Enable software auto-shutdown?'),
+        content: const Text(
+          'This only attempts to switch the strip off after two fresh warning samples. '
+          'It may fail if the server, Wi-Fi or relay stops responding. '
+          'It does NOT replace an electrical fuse, circuit breaker or thermal protector.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Enable')),
+        ],
+      ),
+    );
+    if (mounted && accepted == true) setState(() => autoOff = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Column(
+          children: [
+            TextField(controller: watts, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Power warning (W)', helperText: '100 – 5000 W')),
+            const SizedBox(height: 10),
+            TextField(controller: amps, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Total current warning (A)', helperText: '1 – 16 A')),
+            const SizedBox(height: 10),
+            TextField(controller: degrees, keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Temperature warning (°C)', helperText: '40 – 95 °C')),
+            const SizedBox(height: 10),
+            SwitchListTile.adaptive(
+              title: const Text('Optional software shutdown'),
+              subtitle: const Text('OFF by default. Not certified electrical protection.'),
+              value: autoOff,
+              onChanged: saving ? null : changeAutoOff,
+              contentPadding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: saving ? null : save,
+              icon: saving ? const SizedBox(
+                width: 16, height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ) : const Icon(Icons.save_rounded),
+              label: const Text('Save safety settings'),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

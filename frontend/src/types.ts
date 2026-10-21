@@ -11,6 +11,8 @@ export type Outlet = {
   relay?: boolean | null;
   power_w?: number | null;
   energy_kwh?: number | null;
+  current_a?: number | null;
+  temperature_c?: number | null;
 };
 
 export type Health = {
@@ -31,6 +33,8 @@ export type Strip = {
   last_ip?: string | null;
   last_seen_at?: string | null;
   voltage_v?: number | null;
+  total_current_a?: number | null;
+  last_current_at?: string | null;
   wifi_rssi_dbm?: number | null;
   health?: Health;
   outlets: Outlet[];
@@ -67,6 +71,7 @@ export type Overview = {
   mappings: Record<string, Mapping>;
   scenes: Scene[];
   settings: Settings;
+  alerts?: SafetyAlert[];
   summary: {
     active_strips: number;
     online_strips: number;
@@ -76,6 +81,15 @@ export type Overview = {
   };
 };
 
+export type SafetyAlert = {
+  mac: string;
+  kind: string;
+  outlet: number;
+  value: number;
+  threshold: number;
+  sample_at: string;
+};
+
 export type Settings = {
   energy_price_per_kwh: number;
   currency: string;
@@ -83,6 +97,10 @@ export type Settings = {
   voltage_min_v: number;
   voltage_max_v: number;
   unusual_power_w: number;
+  alert_max_total_power_w: number;
+  alert_max_total_current_a: number;
+  alert_max_temperature_c: number;
+  alert_auto_off_enabled: boolean;
 };
 
 export type Schedule = {
