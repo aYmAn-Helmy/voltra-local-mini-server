@@ -1,5 +1,16 @@
 # Voltra Mobile
 
+## Miqaat LAN-only APK v1.4.1+8 — No API Token
+
+This APK is for the `miqaat` server. **No access token is requested, saved, or sent in an Authorization header.** Any legacy saved token is deleted on app startup. Use automatic UDP 10087 discovery or enter the local server IP (for example `192.168.1.45:8086`). Only LAN IPv4/IPv6 and local hostnames are accepted: public URLs are rejected.
+
+All existing power-strip controls, four independent outlets, bulk control, telemetry, fast-control spinners, automation, scenes, energy history, PIN/biometric app lock, and phone-side Wi-Fi provisioning remain available.
+
+The older v1.3.x remote-HTTPS-with-token mode below is historical and **not available in this LAN edition**. The Miqaat server must not be exposed to the public internet. APK upgrades require the same signing certificate as the version already installed; pull-request artifacts use test signing.
+
+---
+
+
 Native Android controller for the Voltra Local Mini Server.
 
 ## v1.3.2 — direct strip provisioning from Android
