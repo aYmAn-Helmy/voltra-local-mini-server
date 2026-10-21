@@ -1061,6 +1061,7 @@ class _OutletTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final on = data?['relay'] == true;
     final power = _num(data?['power_w']);
+    final current = data?['current_a'];
     return Material(
       color: on ? const Color(0xFF15332D) : const Color(0xFF151E30),
       shape: RoundedRectangleBorder(
@@ -1111,7 +1112,7 @@ class _OutletTile extends StatelessWidget {
               ),
               const SizedBox(height: 3),
               Text(
-                busy ? 'Switching…' : on ? 'ON · ${power.toStringAsFixed(1)} W' : 'OFF',
+                busy ? 'Switching…' : on ? 'ON · ${power.toStringAsFixed(1)} W${current is num ? ' · ${current.toStringAsFixed(3)} A' : ''}' : 'OFF',
                 style: TextStyle(
                   color:
                       on ? const Color(0xFF39E27D) : const Color(0xFF737D92),

@@ -29,6 +29,22 @@ def health_from_snapshot(snapshot: dict | None) -> dict:
             score -= 20
             reasons.append("voltage_warning")
 
+    current = snapshot.get("total_current_a")
+    if isinstance(current, (int, float)) and current > 12.0:
+        score -= 35
+        reasons.append("high_current")
+
+    outlets = snapshot.get("outlets") or []
+    if sum(float(o.get("power_w") or 0) for o in outlets) > 1500:
+        score -= 30
+        reasons.append("high_power")
+    if any(isinstance(o.get("temperature_c"), (int, float)) and o["temperature_c"] > 75 for o in outlets):
+        score -= 40
+        reasons.append("high_temperature")
+    if any(o.get("overload_protection") or o.get("overheat_protection") for o in outlets):
+        score -= 40
+        reasons.append("device_protection_reported")
+
     metrics = snapshot.get("metrics") or {}
     commands = int(metrics.get("command_count") or 0)
     failures = int(metrics.get("command_failures") or 0)

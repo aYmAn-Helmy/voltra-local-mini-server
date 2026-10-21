@@ -42,6 +42,7 @@ class DeviceSession:
         self.last_event_at: str | None = None
         self.last_event: dict | None = None
         self.voltage_v: float | None = None
+        self.current_a: dict[int, float] = {}
         self.wifi_rssi_dbm: int | None = None
         self.outlets: dict[int, OutletInfo] = {}
         self._last_diagnostics_monotonic = 0.0
@@ -102,6 +103,7 @@ class DeviceSession:
             "last_info_at": self.last_info_at,
             "last_diagnostics_at": self.last_diagnostics_at,
             "voltage_v": self.voltage_v,
+            "total_current_a": round(sum(self.current_a.values()), 3) if self.current_a else None,
             "wifi_rssi_dbm": self.wifi_rssi_dbm,
             "last_event_at": self.last_event_at,
             "last_event": self.last_event,
@@ -115,7 +117,7 @@ class DeviceSession:
                 "last_control_total_ms": self.last_control_total_ms,
                 "last_command_at": self.last_command_at,
             },
-            "outlets": [self.outlets[idx].to_dict() for idx in sorted(self.outlets)],
+            "outlets": [{**self.outlets[idx].to_dict(), "current_a": self.current_a.get(idx)} for idx in sorted(self.outlets)],
         }
 
     def set_outlet(self, outlet: int, on: bool) -> dict:
@@ -180,6 +182,19 @@ class DeviceSession:
                 and 50_000 <= value[1] <= 300_000
             ),
         )
+        # Native current measurements are supported on stock firmware.
+        # A failed channel read does not interrupt other diagnostics.
+        for channel in (1, 2, 3, 4):
+            try:
+                self.request(
+                    f"up:power_report:{channel}:current",
+                    lambda frame, channel=channel: bool(
+                        (value := parse_power_report(frame))
+                        and value[0] == channel and 0 <= value[1] <= 20_000
+                    ),
+                )
+            except (TimeoutError, RuntimeError, OSError):
+                self.current_a.pop(channel, None)
         self.request(WIFI_RSSI_REQUEST, lambda frame: parse_wifi_rssi(frame) is not None)
         self.last_diagnostics_at = utc_now()
         self._last_diagnostics_monotonic = time.monotonic()
@@ -289,7 +304,9 @@ class DeviceSession:
 
         power_report = parse_power_report(frame)
         if power_report is not None:
-            _, raw_value = power_report
+            channel, raw_value = power_report
+            if 0 <= raw_value <= 20_000:
+                self.current_a[channel] = round(raw_value / 1000.0, 3)
             if 50_000 <= raw_value <= 300_000:
                 self.voltage_v = round(raw_value / 1000.0, 1)
                 self.last_diagnostics_at = utc_now()

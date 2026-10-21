@@ -22,6 +22,8 @@ ENV PYTHONUNBUFFERED=1 \
 COPY voltra_local /app/voltra_local
 COPY --from=frontend-build /frontend/dist /app/voltra_local/web
 
+RUN python -m pip install --no-cache-dir "paho-mqtt>=2.0,<3"
+
 RUN mkdir -p /app/data
 
 EXPOSE 8086 10086

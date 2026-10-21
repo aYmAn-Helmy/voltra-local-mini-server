@@ -10,6 +10,7 @@ export type Outlet = {
   channel: number;
   relay?: boolean | null;
   power_w?: number | null;
+  current_a?: number | null;
   energy_kwh?: number | null;
 };
 
@@ -31,6 +32,7 @@ export type Strip = {
   last_ip?: string | null;
   last_seen_at?: string | null;
   voltage_v?: number | null;
+  total_current_a?: number | null;
   wifi_rssi_dbm?: number | null;
   health?: Health;
   outlets: Outlet[];
