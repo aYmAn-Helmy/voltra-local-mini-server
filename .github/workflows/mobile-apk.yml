@@ -49,6 +49,115 @@ jobs:
         working-directory: /tmp/voltra_mobile
         run: flutter pub get
 
+      - name: Assert incompatible preferences plugin is excluded
+        working-directory: /tmp/voltra_mobile
+        run: |
+          if grep -Eq '^  shared_preferences(_android)?:
+        working-directory: /tmp/voltra_mobile
+        run: |
+          dart run flutter_launcher_icons
+          dart run flutter_native_splash:create
+
+      - name: Make Android launch theme biometric-compatible
+        working-directory: /tmp/voltra_mobile
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          for path in Path("android/app/src/main/res").rglob("styles.xml"):
+              text = path.read_text()
+              text = text.replace(
+                  'parent="@android:style/Theme.Light.NoTitleBar"',
+                  'parent="Theme.AppCompat.DayNight.NoActionBar"',
+              )
+              text = text.replace(
+                  'parent="@android:style/Theme.Black.NoTitleBar"',
+                  'parent="Theme.AppCompat.DayNight.NoActionBar"',
+              )
+              path.write_text(text)
+          PY
+
+      - name: Configure optional production signing
+        if: github.event_name != 'pull_request'
+        env:
+          KEYSTORE_B64: ${{ secrets.VOLTRA_ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.VOLTRA_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.VOLTRA_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.VOLTRA_ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            test -n "$KEYSTORE_PASSWORD"
+            test -n "$KEY_ALIAS"
+            test -n "$KEY_PASSWORD"
+            printf '%s' "$KEYSTORE_B64" | base64 -d > /tmp/voltra_mobile/voltra-release.jks
+            echo "VOLTRA_SIGNING=production" >> "$GITHUB_ENV"
+          else
+            echo "VOLTRA_SIGNING=test" >> "$GITHUB_ENV"
+          fi
+
+      - name: Use test signing for pull requests
+        if: github.event_name == 'pull_request'
+        run: echo "VOLTRA_SIGNING=test" >> "$GITHUB_ENV"
+
+      - name: Verify permanent application ID
+        run: |
+          grep -q 'applicationId = "com.ayman.voltra.voltra_mobile"' /tmp/voltra_mobile/android/app/build.gradle.kts
+
+      - name: Analyze
+        working-directory: /tmp/voltra_mobile
+        run: flutter analyze
+
+      - name: Test
+        working-directory: /tmp/voltra_mobile
+        run: flutter test
+
+      - name: Build release APK
+        working-directory: /tmp/voltra_mobile
+        run: flutter build apk --release
+
+      - name: Apply and verify production APK signature
+        if: env.VOLTRA_SIGNING == 'production'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.VOLTRA_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.VOLTRA_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.VOLTRA_ANDROID_KEY_PASSWORD }}
+        run: |
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          APKSIGNER="$BUILD_TOOLS/apksigner"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" sign \
+            --ks /tmp/voltra_mobile/voltra-release.jks \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass "pass:$KEYSTORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --out /tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release-production.apk \
+            /tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release.apk
+          "$APKSIGNER" verify --verbose --print-certs \
+            /tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release-production.apk
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p mobile-artifact
+          if [ "$VOLTRA_SIGNING" = "production" ]; then
+            SRC=/tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release-production.apk
+          else
+            SRC=/tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release.apk
+          fi
+          cp "$SRC" "mobile-artifact/Voltra-Mobile-v1.4.1-${VOLTRA_SIGNING}-signed.apk"
+          sha256sum mobile-artifact/*.apk > mobile-artifact/SHA256SUMS.txt
+          printf 'package_id=com.ayman.voltra.voltra_mobile\nversion=1.4.1+8\nsigning=%s\n' "$VOLTRA_SIGNING" > mobile-artifact/BUILD-INFO.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Voltra-Mobile-v1.4.1
+          path: mobile-artifact/
+          retention-days: 90
+          if-no-files-found: error
+ pubspec.lock; then
+            echo "::error::Legacy shared_preferences plugin must not be packaged in Android."
+            exit 1
+          fi
+
       - name: Generate launcher icon and splash
         working-directory: /tmp/voltra_mobile
         run: |
@@ -140,13 +249,13 @@ jobs:
           else
             SRC=/tmp/voltra_mobile/build/app/outputs/flutter-apk/app-release.apk
           fi
-          cp "$SRC" "mobile-artifact/Voltra-Mobile-v1.4.0-${VOLTRA_SIGNING}-signed.apk"
+          cp "$SRC" "mobile-artifact/Voltra-Mobile-v1.4.1-${VOLTRA_SIGNING}-signed.apk"
           sha256sum mobile-artifact/*.apk > mobile-artifact/SHA256SUMS.txt
-          printf 'package_id=com.ayman.voltra.voltra_mobile\nversion=1.4.0+7\nsigning=%s\n' "$VOLTRA_SIGNING" > mobile-artifact/BUILD-INFO.txt
+          printf 'package_id=com.ayman.voltra.voltra_mobile\nversion=1.4.1+8\nsigning=%s\n' "$VOLTRA_SIGNING" > mobile-artifact/BUILD-INFO.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Voltra-Mobile-v1.4.0
+          name: Voltra-Mobile-v1.4.1
           path: mobile-artifact/
           retention-days: 90
           if-no-files-found: error
