@@ -12,6 +12,7 @@ from .demo_device import run_demo_device
 from .discovery import DiscoveryResponder
 from .events import EventBus
 from .http_api import start_http
+from .mqtt_bridge import MQTTBridge
 from .store import ConfigStore
 from .tcp_server import MTTLServer
 from .telemetry import TelemetryStore
@@ -108,6 +109,20 @@ def main() -> None:
     )
     automation.start()
 
+    mqtt = None
+    mqtt_host = os.getenv("VOLTRA_MQTT_HOST", "").strip()
+    if mqtt_host:
+        def mqtt_command(mac: str, channel: int, on: bool) -> dict:
+            return automation_command(mac, channel, on, "home_assistant_mqtt")
+
+        mqtt = MQTTBridge(
+            mqtt_host, env_int("VOLTRA_MQTT_PORT", 1883), mttl.list_devices, mqtt_command,
+            username=os.getenv("VOLTRA_MQTT_USERNAME", ""),
+            password=os.getenv("VOLTRA_MQTT_PASSWORD", ""),
+            tls=env_bool("VOLTRA_MQTT_TLS"),
+        )
+        mqtt.start()
+
     http = start_http(
         mttl,
         http_bind,
@@ -141,6 +156,8 @@ def main() -> None:
         stop.set()
         print("[APP] shutting down")
         automation.stop()
+        if mqtt is not None:
+            mqtt.stop()
         discovery.stop()
         telemetry.stop()
         http.shutdown()
