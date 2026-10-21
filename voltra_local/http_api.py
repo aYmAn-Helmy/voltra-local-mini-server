@@ -682,6 +682,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
                 "last_seen_at": (current or {}).get("last_seen_at") or meta.get("last_seen_at"),
                 "last_diagnostics_at": (current or {}).get("last_diagnostics_at"),
                 "voltage_v": (current or {}).get("voltage_v"),
+                "total_current_a": (current or {}).get("total_current_a"),
                 "wifi_rssi_dbm": (current or {}).get("wifi_rssi_dbm"),
                 "last_event_at": (current or {}).get("last_event_at"),
                 "last_event": (current or {}).get("last_event"),
