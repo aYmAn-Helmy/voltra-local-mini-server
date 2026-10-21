@@ -18,7 +18,7 @@ VOLTRA_MQTT_PASSWORD=
 VOLTRA_MQTT_TLS=0
 ```
 
-Restart using the same Docker Compose file. With `VOLTRA_MQTT_HOST` empty, **no MQTT connection is attempted**. With a broker configured, the bridge advertises four switches plus power/current/voltage sensors per detected strip via MQTT Discovery, publishes confirmed snapshot states, and receives outlet ON/OFF commands via `voltra/<MAC>/outlet/<channel>/set`.
+Restart using the same Docker Compose file. With `VOLTRA_MQTT_HOST` empty, **no MQTT connection is attempted**. With a broker configured, the bridge advertises four switches plus total power/current/voltage and per-outlet current/power/energy/temperature sensors (23 entities per detected strip) via MQTT Discovery, publishes confirmed snapshot states, and receives outlet ON/OFF commands via `voltra/<MAC>/outlet/<channel>/set`.
 
 The bridge honors server-side strip approval and control permissions. The MQTT broker MUST be accessible only to trusted clients; use dedicated credentials and TLS for broker connections across untrusted links. MQTT QoS is 0 in this first integration, and Home Assistant should treat device states as reported/last-seen rather than physical contact sensing. Test state synchronization, reconnects and hardware commands before production deployment.
 
