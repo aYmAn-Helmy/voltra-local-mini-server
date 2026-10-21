@@ -1,18 +1,46 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'voltra_api.dart';
 
 class AppController extends ChangeNotifier {
-  static const _serverKey = 'voltra.server';
+  // Legacy v1.1 stored only the server address in Android's preferences.
+  // Read it directly from Android when upgrading, without the incompatible
+  // shared_preferences Pigeon plugin that crashed during startup on some phones.
+  static const _legacyPreferences = MethodChannel('com.ayman.voltra/legacy_preferences');
   static const _secureServerKey = 'voltra.server.secure';
   static const _secureTokenKey = 'voltra.api.token.secure';
 
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
+  Future<String?> _readLegacyServer() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      return await _legacyPreferences.invokeMethod<String>('readServer');
+    } on PlatformException catch (error) {
+      debugPrint('Unable to read legacy server URL: $error');
+      return null;
+    } on MissingPluginException catch (error) {
+      debugPrint('Legacy server bridge unavailable: $error');
+      return null;
+    }
+  }
+
+  Future<void> _clearLegacyServer() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await _legacyPreferences.invokeMethod<void>('clearServer');
+    } on PlatformException catch (error) {
+      debugPrint('Unable to clear migrated legacy server URL: $error');
+    } on MissingPluginException catch (error) {
+      debugPrint('Legacy server bridge unavailable: $error');
+    }
+  }
 
   VoltraApi? api;
   Map<String, dynamic>? overview;
@@ -100,13 +128,16 @@ class AppController extends ChangeNotifier {
     final info = await PackageInfo.fromPlatform();
     appVersion = info.version;
     appBuild = info.buildNumber;
-    final prefs = await SharedPreferences.getInstance();
     var saved = await _secureStorage.read(key: _secureServerKey);
-    final legacy = prefs.getString(_serverKey);
-    if ((saved == null || saved.isEmpty) && legacy != null && legacy.isNotEmpty) {
-      saved = legacy;
-      await _secureStorage.write(key: _secureServerKey, value: legacy);
-      await prefs.remove(_serverKey);
+    // Only ask Android for old unencrypted data if the secure value is absent.
+    // This migration happens once; existing secure settings are untouched.
+    if (saved == null || saved.isEmpty) {
+      final legacy = await _readLegacyServer();
+      if (legacy != null && legacy.isNotEmpty) {
+        saved = legacy;
+        await _secureStorage.write(key: _secureServerKey, value: legacy);
+        await _clearLegacyServer();
+      }
     }
     if (saved == null || saved.isEmpty) return;
     final savedToken = await _secureStorage.read(key: _secureTokenKey);
@@ -149,8 +180,7 @@ class AppController extends ChangeNotifier {
             value: candidate.apiToken,
           );
         }
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove(_serverKey);
+        await _clearLegacyServer();
       }
       await refresh();
       _startPolling();
@@ -181,8 +211,7 @@ class AppController extends ChangeNotifier {
     connected = false;
     await _secureStorage.delete(key: _secureServerKey);
     await _secureStorage.delete(key: _secureTokenKey);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_serverKey);
+    await _clearLegacyServer();
     notifyListeners();
   }
 
