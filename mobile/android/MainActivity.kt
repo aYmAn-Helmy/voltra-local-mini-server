@@ -24,6 +24,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        registerLegacyPreferencesBridge(flutterEngine)
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -44,6 +45,35 @@ class MainActivity : FlutterFragmentActivity() {
                         result.error("native_http_error", message, null)
                     }
                 }
+            }
+        }
+    }
+
+    // Migrates the old `shared_preferences` value once without registering
+    // shared_preferences_android or its incompatible generated Pigeon API.
+    private fun registerLegacyPreferencesBridge(flutterEngine: FlutterEngine) {
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.ayman.voltra/legacy_preferences"
+        ).setMethodCallHandler { call, result ->
+            try {
+                val prefs = getSharedPreferences("FlutterSharedPreferences", MODE_PRIVATE)
+                when (call.method) {
+                    "readServer" -> result.success(
+                        prefs.getString("flutter.voltra.server", null)
+                            ?: prefs.getString("voltra.server", null)
+                    )
+                    "clearServer" -> {
+                        prefs.edit()
+                            .remove("flutter.voltra.server")
+                            .remove("voltra.server")
+                            .apply()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            } catch (error: Exception) {
+                result.error("legacy_preferences_error", error.message, null)
             }
         }
     }
