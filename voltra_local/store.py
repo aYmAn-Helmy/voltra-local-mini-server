@@ -501,7 +501,7 @@ class ConfigStore:
         if not isinstance(value, dict):
             raise ValueError("settings must be an object")
         with self._lock:
-            settings = self._data["settings"]
+            settings = dict(self._data["settings"])
             if "energy_price_per_kwh" in value:
                 price = float(value["energy_price_per_kwh"])
                 if price < 0 or price > 100000:
@@ -536,6 +536,7 @@ class ConfigStore:
                 if type(value["alert_auto_off_enabled"]) is not bool:
                     raise ValueError("alert_auto_off_enabled must be boolean")
                 settings["alert_auto_off_enabled"] = value["alert_auto_off_enabled"]
+            self._data["settings"] = settings
             self._save_locked()
             return dict(settings)
 
