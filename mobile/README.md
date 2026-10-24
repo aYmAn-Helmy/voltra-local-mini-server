@@ -2,6 +2,29 @@
 
 Native Android controller for the Voltra Local Mini Server.
 
+## v1.5.0 — Modern Smart Home + real interactions
+
+ModernSmartHomeUI-inspired device cards with animated on/off states, a tactile
+pressed state, haptic confirmations, animated relay progress, and verified
+server feedback. These are custom Flutter components wired to the live
+Voltra API, **not** sample switches holding local demo values.
+
+- Home quick actions now navigate to Consumption and Automation, or display
+  a functional room filter; every tile has ripple, press scale and haptics.
+- Outlet cards show pending, unavailable, on and off independently; double
+  taps while pending and overlapping group commands are blocked.
+- Bulk commands retain confirmation and show a verified result or error.
+- Automation action cards show a pending indicator during actual operations.
+- Real connection settings, HTTPS token, local provisioning, schedules,
+  scenes, PIN and biometric unlock remain in place.
+- Maintains v1.4.1 Android startup fix (no shared_preferences Pigeon runtime).
+
+**Attribution:** Visual inspiration from Mitch Koko's ModernSmartHomeUI,
+licensed MIT. See `THIRD_PARTY.md`. UI controls were implemented directly
+in Voltra rather than importing old Flutter 2 code.
+
+
+
 ## v1.4.1 — Android startup crash fix
 
 The initial v1.4.0+7 test-signed APK could display a red `NoSuchMethodError`
