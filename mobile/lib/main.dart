@@ -745,10 +745,19 @@ class _HomePageState extends State<HomePage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
         children: [
-          Card(
-            child: InkWell(
-              onTap: widget.onOpenSettings,
-              borderRadius: BorderRadius.circular(22),
+          ModernPressable(
+            onTap: widget.onOpenSettings,
+            semanticLabel: 'Open connection and settings',
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF20394A), Color(0xFF122332)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFF2B4E56)),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(13),
                 child: Row(
@@ -2400,11 +2409,12 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _ActionCard extends StatelessWidget {
+class _ActionCard extends StatefulWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final VoidCallback onTap;
+  final Future<void> Function() onTap;
+
   const _ActionCard({
     required this.icon,
     required this.title,
@@ -2413,46 +2423,78 @@ class _ActionCard extends StatelessWidget {
   });
 
   @override
+  State<_ActionCard> createState() => _ActionCardState();
+}
+
+class _ActionCardState extends State<_ActionCard> {
+  bool busy = false;
+
+  Future<void> invoke() async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await widget.onTap();
+    } catch (error) {
+      if (mounted) _snack(context, error.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF123128),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(icon, color: const Color(0xFF39E27D)),
-              ),
-              const SizedBox(height: 13),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  color: Color(0xFF7B859A),
-                  fontSize: 9,
-                ),
-              ),
-            ],
+    return ModernPressable(
+      semanticLabel: widget.title,
+      onTap: busy ? null : () { invoke(); },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 210),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [Color(0xFF1B2A3B), Color(0xFF111B2C)],
           ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: busy ? const Color(0xFF42E59C) : const Color(0xFF2A384B),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFF174535),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: busy
+                    ? const Padding(
+                        key: ValueKey('loading'),
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF42E59C),
+                        ),
+                      )
+                    : Icon(key: ValueKey(widget.icon),
+                        widget.icon, color: const Color(0xFF42E59C)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(widget.title,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(busy ? 'Working…' : widget.subtitle,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFF98A5B7), fontSize: 10),
+            ),
+          ],
         ),
       ),
     );
