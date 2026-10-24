@@ -86,6 +86,8 @@ void main() {
         ),
       ),
     ));
+    await tester.tap(find.text('Voltra Local').first);
+    expect(settings, 1);
     await tester.ensureVisible(find.text('Energy').first);
     await tester.tap(find.text('Energy').first);
     await tester.pump();
@@ -98,9 +100,6 @@ void main() {
     await tester.tap(find.text('Bedroom').last);
     await tester.pumpAndSettle();
     expect(find.text('Room: Bedroom · Clear'), findsOneWidget);
-    await tester.ensureVisible(find.text('Voltra Local').first);
-    await tester.tap(find.text('Voltra Local').first);
-    expect(settings, 1);
     controller.dispose();
   });
 }
