@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_controller.dart';
+import 'modern_controls.dart';
 import 'security_controller.dart';
 import 'security_ui.dart';
 import 'voltra_api.dart';
@@ -127,6 +129,13 @@ class _VoltraMobileAppState extends State<VoltraMobileApp>
             borderRadius: BorderRadius.circular(15),
             borderSide: const BorderSide(color: green),
           ),
+        ),
+        splashFactory: InkRipple.splashFactory,
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(minimumSize: const Size(56, 48)),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(56, 48)),
         ),
         navigationBarTheme: const NavigationBarThemeData(
           backgroundColor: Color(0xF20C1320),
@@ -536,7 +545,11 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomePage(controller: widget.controller, onOpenSettings: () => setState(() => index = 3)),
+      HomePage(
+        controller: widget.controller,
+        onOpenSettings: () => setState(() => index = 3),
+        onNavigate: (tab) => setState(() => index = tab),
+      ),
       EnergyPage(controller: widget.controller),
       AutomationPage(controller: widget.controller),
       SettingsPage(
@@ -613,7 +626,11 @@ class _MainShellState extends State<MainShell> {
           : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
-        onDestinationSelected: (value) => setState(() => index = value),
+        onDestinationSelected: (value) {
+          if (index == value) return;
+          HapticFeedback.selectionClick();
+          setState(() => index = value);
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.power_rounded),
@@ -640,7 +657,13 @@ class _MainShellState extends State<MainShell> {
 class HomePage extends StatefulWidget {
   final AppController controller;
   final VoidCallback onOpenSettings;
-  const HomePage({super.key, required this.controller, required this.onOpenSettings});
+  final ValueChanged<int> onNavigate;
+  const HomePage({
+    super.key,
+    required this.controller,
+    required this.onOpenSettings,
+    required this.onNavigate,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -648,12 +671,51 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String query = '';
+  String? roomFilter;
+
+  Future<void> chooseRoom() async {
+    final rooms = widget.controller.activeStrips
+        .map((strip) => strip['room']?.toString().trim() ?? '')
+        .where((room) => room.isNotEmpty)
+        .toSet()
+        .toList()..sort();
+    final chosen = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFF111A2B),
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('Filter by room',
+                style: TextStyle(fontWeight: FontWeight.w900))),
+            ListTile(
+              leading: const Icon(Icons.home_rounded),
+              title: const Text('All rooms'),
+              trailing: roomFilter == null ? const Icon(Icons.check_rounded) : null,
+              onTap: () => Navigator.pop(sheetContext, '__all__'),
+            ),
+            ...rooms.map((room) => ListTile(
+              leading: const Icon(Icons.meeting_room_rounded),
+              title: Text(room),
+              trailing: room == roomFilter ? const Icon(Icons.check_rounded) : null,
+              onTap: () => Navigator.pop(sheetContext, room),
+            )),
+          ],
+        ),
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    HapticFeedback.selectionClick();
+    setState(() => roomFilter = chosen == '__all__' ? null : chosen);
+  }
 
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
     final strips = controller.activeStrips;
     final filtered = strips.where((strip) {
+      if (roomFilter != null && (strip['room']?.toString().trim() ?? '') != roomFilter) return false;
       if (query.trim().isEmpty) return true;
       final q = query.toLowerCase();
       return [
@@ -683,10 +745,19 @@ class _HomePageState extends State<HomePage> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
         children: [
-          Card(
-            child: InkWell(
-              onTap: widget.onOpenSettings,
-              borderRadius: BorderRadius.circular(22),
+          ModernPressable(
+            onTap: widget.onOpenSettings,
+            semanticLabel: 'Open connection and settings',
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF20394A), Color(0xFF122332)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFF2B4E56)),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(13),
                 child: Row(
@@ -731,8 +802,26 @@ class _HomePageState extends State<HomePage> {
             plans: '$schedules',
           ),
           const SizedBox(height: 14),
-          const _QuickGrid(),
+          _QuickGrid(
+            onEnergy: () => widget.onNavigate(1),
+            onSchedules: () => widget.onNavigate(2),
+            onAutomation: () => widget.onNavigate(2),
+            onRooms: chooseRoom,
+          ),
           const SizedBox(height: 14),
+          if (roomFilter != null) Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Align(alignment: Alignment.centerLeft,
+              child: ActionChip(
+                avatar: const Icon(Icons.meeting_room_outlined, size: 16),
+                label: Text('Room: $roomFilter · Clear'),
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  setState(() => roomFilter = null);
+                },
+              ),
+            ),
+          ),
           TextField(
             onChanged: (value) => setState(() => query = value),
             decoration: const InputDecoration(
@@ -847,57 +936,54 @@ class _PowerHero extends StatelessWidget {
 }
 
 class _QuickGrid extends StatelessWidget {
-  const _QuickGrid();
+  final VoidCallback onEnergy;
+  final VoidCallback onSchedules;
+  final VoidCallback onAutomation;
+  final VoidCallback onRooms;
+  const _QuickGrid({
+    required this.onEnergy,
+    required this.onSchedules,
+    required this.onAutomation,
+    required this.onRooms,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final items = [
-      (Icons.bar_chart_rounded, 'Consumption'),
-      (Icons.schedule_rounded, 'Schedules'),
-      (Icons.bolt_rounded, 'Power automation'),
-      (Icons.meeting_room_outlined, 'Rooms'),
+    final actions = [
+      (Icons.bar_chart_rounded, 'Energy', onEnergy),
+      (Icons.schedule_rounded, 'Schedules', onSchedules),
+      (Icons.bolt_rounded, 'Automation', onAutomation),
+      (Icons.meeting_room_rounded, 'Rooms', onRooms),
     ];
     return Row(
       children: [
-        for (var i = 0; i < items.length; i++) ...[
-          if (i > 0) const SizedBox(width: 7),
+        for (var i = 0; i < actions.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
           Expanded(
-            child: Container(
-              height: 82,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF101827),
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: const Color(0xFF222D42)),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF123128),
-                      borderRadius: BorderRadius.circular(11),
+            child: ModernPressable(
+              semanticLabel: actions[i].$2,
+              onTap: actions[i].$3,
+              radius: BorderRadius.circular(18),
+              child: Container(
+                height: 87,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF162334),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFF2A3D4E)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(actions[i].$1,
+                        color: const Color(0xFF42E59C), size: 24),
+                    const SizedBox(height: 9),
+                    Text(actions[i].$2,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
                     ),
-                    child: Icon(
-                      items[i].$1,
-                      color: const Color(0xFF39E27D),
-                      size: 19,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    items[i].$2,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF8B95A9),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -943,7 +1029,10 @@ class StripCard extends StatelessWidget {
         channel,
         on,
       );
+      HapticFeedback.lightImpact();
+      if (context.mounted) _snack(context, 'Outlet $channel ${on ? 'on' : 'off'} · command verified');
     } catch (e) {
+      HapticFeedback.heavyImpact();
       if (context.mounted) _snack(context, e.toString(), error: true);
     }
   }
@@ -971,7 +1060,10 @@ class StripCard extends StatelessWidget {
     if (confirmed != true) return;
     try {
       await controller.setAll(strip, on);
+      HapticFeedback.lightImpact();
+      if (context.mounted) _snack(context, on ? 'All outlets turned on' : 'All outlets turned off');
     } catch (e) {
+      HapticFeedback.heavyImpact();
       if (context.mounted) _snack(context, e.toString(), error: true);
     }
   }
@@ -1043,15 +1135,17 @@ class StripCard extends StatelessWidget {
               shrinkWrap: true,
               crossAxisSpacing: 9,
               mainAxisSpacing: 9,
-              childAspectRatio: 1.38,
+              childAspectRatio: 1.16,
               children: [
                 for (var channel = 1; channel <= 4; channel++)
-                  _OutletTile(
+                  ModernOutletTile(
                     channel: channel,
-                    data: outlet(channel),
-                    enabled: online && enabled,
-                    busy: controller.outletBusy(strip["mac"]?.toString() ?? "", channel),
-                    onToggle: (value) => _toggle(context, channel, value),
+                    name: 'Outlet $channel',
+                    on: outlet(channel)?['relay'] == true,
+                    powerW: _num(outlet(channel)?['power_w']),
+                    online: online && enabled,
+                    busy: controller.outletBusy(strip['mac']?.toString() ?? '', channel),
+                    onChanged: (value) => _toggle(context, channel, value),
                   ),
               ],
             ),
@@ -1086,90 +1180,6 @@ class StripCard extends StatelessWidget {
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _OutletTile extends StatelessWidget {
-  final int channel;
-  final Map<String, dynamic>? data;
-  final bool enabled;
-  final bool busy;
-  final ValueChanged<bool> onToggle;
-  const _OutletTile({
-    required this.channel,
-    required this.data,
-    required this.enabled,
-    required this.busy,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final on = data?['relay'] == true;
-    final power = _num(data?['power_w']);
-    return Material(
-      color: on ? const Color(0xFF15332D) : const Color(0xFF151E30),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: BorderSide(
-          color:
-              on ? const Color(0xFF28734F) : const Color(0xFF232E43),
-        ),
-      ),
-      child: InkWell(
-        onTap: enabled && !busy ? () => onToggle(!on) : null,
-        borderRadius: BorderRadius.circular(15),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color:
-                        on ? const Color(0xFF39E27D) : const Color(0xFF3A455B),
-                    width: 2,
-                  ),
-                ),
-                child: busy
-                    ? const Padding(
-                        padding: EdgeInsets.all(8),
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Icon(
-                  Icons.power_rounded,
-                  size: 17,
-                  color:
-                      on ? const Color(0xFF39E27D) : const Color(0xFF657087),
-                ),
-              ),
-              const Spacer(),
-              Text(
-                'Outlet $channel',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                busy ? 'Switching…' : on ? 'ON · ${power.toStringAsFixed(1)} W' : 'OFF',
-                style: TextStyle(
-                  color:
-                      on ? const Color(0xFF39E27D) : const Color(0xFF737D92),
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -2399,11 +2409,12 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _ActionCard extends StatelessWidget {
+class _ActionCard extends StatefulWidget {
   final IconData icon;
   final String title;
   final String subtitle;
-  final VoidCallback onTap;
+  final Future<void> Function() onTap;
+
   const _ActionCard({
     required this.icon,
     required this.title,
@@ -2412,46 +2423,78 @@ class _ActionCard extends StatelessWidget {
   });
 
   @override
+  State<_ActionCard> createState() => _ActionCardState();
+}
+
+class _ActionCardState extends State<_ActionCard> {
+  bool busy = false;
+
+  Future<void> invoke() async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await widget.onTap();
+    } catch (error) {
+      if (mounted) _snack(context, error.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF123128),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Icon(icon, color: const Color(0xFF39E27D)),
-              ),
-              const SizedBox(height: 13),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                subtitle,
-                style: const TextStyle(
-                  color: Color(0xFF7B859A),
-                  fontSize: 9,
-                ),
-              ),
-            ],
+    return ModernPressable(
+      semanticLabel: widget.title,
+      onTap: busy ? null : () { invoke(); },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 210),
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [Color(0xFF1B2A3B), Color(0xFF111B2C)],
           ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: busy ? const Color(0xFF42E59C) : const Color(0xFF2A384B),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFF174535),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: busy
+                    ? const Padding(
+                        key: ValueKey('loading'),
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFF42E59C),
+                        ),
+                      )
+                    : Icon(key: ValueKey(widget.icon),
+                        widget.icon, color: const Color(0xFF42E59C)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(widget.title,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(busy ? 'Working…' : widget.subtitle,
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFF98A5B7), fontSize: 10),
+            ),
+          ],
         ),
       ),
     );
