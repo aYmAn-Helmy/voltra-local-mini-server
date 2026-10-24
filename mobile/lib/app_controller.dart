@@ -59,8 +59,10 @@ class AppController extends ChangeNotifier {
   int _refreshSerial = 0;
   final Map<String, bool> _pendingOutlets = {};
   final Set<String> busyOutlets = {};
+  final Set<String> busyStrips = {};
 
-  bool outletBusy(String mac, int channel) => busyOutlets.contains("$mac:$channel");
+  bool outletBusy(String mac, int channel) =>
+      busyOutlets.contains('$mac:$channel') || busyStrips.contains(mac);
 
   void _applyOutlet(Map<String, dynamic>? source, String mac, int channel, bool on) {
     if (source == null) return;
@@ -203,6 +205,7 @@ class AppController extends ChangeNotifier {
     _poller = null;
     _refreshSerial++;
     busyOutlets.clear();
+    busyStrips.clear();
     _pendingOutlets.clear();
     final current = api;
     api = null;
@@ -272,6 +275,10 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> setOutlet(String mac, int outlet, bool on) async {
+    if (busyStrips.contains(mac)) {
+      throw const VoltraException('Please finish the current group command first.');
+    }
+    if (busyOutlets.contains('$mac:$outlet')) return;
     try {
       await _sendOutlet(mac, outlet, on);
     } finally {
@@ -282,6 +289,11 @@ class AppController extends ChangeNotifier {
   Future<void> setAll(Map<String, dynamic> strip, bool on) async {
     final mac = strip['mac']?.toString() ?? '';
     if (mac.isEmpty) throw const VoltraException('Missing strip MAC address.');
+    if (busyStrips.contains(mac) || busyOutlets.any((key) => key.startsWith('$mac:'))) {
+      throw const VoltraException('An outlet command is already in progress.');
+    }
+    busyStrips.add(mac);
+    notifyListeners();
     final outlets = (strip['outlets'] as List? ?? const []);
     final targets = <int>[];
     for (var channel = 1; channel <= 4; channel++) {
@@ -305,7 +317,12 @@ class AppController extends ChangeNotifier {
         }
       }
     } finally {
-      await refresh(silent: true);
+      try {
+        await refresh(silent: true);
+      } finally {
+        busyStrips.remove(mac);
+        notifyListeners();
+      }
     }
     if (failures > 0) {
       throw VoltraException('$failures outlet command(s) failed or could not be verified.');
