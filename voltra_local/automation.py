@@ -464,8 +464,8 @@ class AutomationEngine:
                 outcome = f"failed:{exc}"
         else:
             outcome = "audit_only"
-        self._audit("automation", "rule_fired", rule_id=rule["id"], mac=rule["mac"], outcome=outcome)
-        self._event("rule_fired", rule_id=rule["id"], mac=rule["mac"], outcome=outcome)
+        self._audit("automation", "rule_fired", rule_id=rule["id"], mac=rule["mac"], outlet=rule.get("outlet"), condition=rule["condition"], threshold=rule.get("threshold"), outcome=outcome)
+        self._event("rule_fired", rule_id=rule["id"], mac=rule["mac"], outlet=rule.get("outlet"), condition=rule["condition"], outcome=outcome)
 
     def _event(self, kind: str, **payload) -> None:
         if self.event_bus:
