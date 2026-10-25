@@ -390,7 +390,9 @@ class AppController extends ChangeNotifier {
 
   Future<void> renameStrip(String mac, String name) async {
     if (name.trim().isEmpty) throw const VoltraException('اسم المشترك مطلوب');
-    await api?.renameStrip(mac, name.trim());
+    final client = api;
+    if (client == null) throw const VoltraException('Server not connected.');
+    await client.renameStrip(mac, name.trim());
     await refresh(silent: true);
   }
 
