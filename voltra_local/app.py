@@ -96,7 +96,7 @@ def main() -> None:
     telemetry.start(mttl.list_devices)
 
     def automation_command(mac: str, outlet: int, on: bool, source: str) -> dict:
-        store.require_strip_controllable(mac)
+        store.require_outlet_action(mac, outlet, on, automated=True)
         result = mttl.get(mac).set_outlet(outlet, on)
         audit.append("automation", "command_executed", mac=mac, outlet=outlet, on=on, source=source)
         return result
