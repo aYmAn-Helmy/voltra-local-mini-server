@@ -153,13 +153,32 @@ class VoltraApi {
   Future<Map<String, dynamic>> setOutlet(
     String mac,
     int outlet,
-    bool on,
-  ) =>
+    bool on, {
+    bool confirmProtected = false,
+  }) =>
       sendJson(
         'POST',
         '/voltra/api/strips/${Uri.encodeComponent(mac)}/outlets/$outlet/state',
-        {'on': on},
+        {'on': on, 'confirm_protected': confirmProtected},
       );
+
+  Future<Map<String, dynamic>> renameStrip(String mac, String name) =>
+      sendJson('PUT', '/voltra/api/strips/${Uri.encodeComponent(mac)}', {'name': name});
+
+  Future<Map<String, dynamic>> getOutletPrefs(String mac, int channel) =>
+      getJson('/voltra/api/strips/${Uri.encodeComponent(mac)}/outlets/$channel/preferences');
+
+  Future<Map<String, dynamic>> saveOutletPrefs(String mac, int channel, Map<String, dynamic> changes) =>
+      sendJson('PUT', '/voltra/api/strips/${Uri.encodeComponent(mac)}/outlets/$channel/preferences', changes);
+
+  Future<Map<String, dynamic>> outletActivity(String mac, int channel) =>
+      getJson('/voltra/api/strips/${Uri.encodeComponent(mac)}/outlets/$channel/activity');
+
+  Future<Map<String, dynamic>> createScene(String name, String mac, int channel, bool on) =>
+      sendJson('POST', '/voltra/api/scenes', {
+        'name': name,
+        'actions': [{'mac': mac, 'outlet': channel, 'on': on}],
+      });
 
   Future<Map<String, dynamic>> adoptStrip(String mac, String name) =>
       sendJson(
