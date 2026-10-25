@@ -161,6 +161,24 @@ class VoltraApi {
         {'on': on},
       );
 
+  Future<Map<String, dynamic>> renameStrip(String mac, String name) =>
+      sendJson('PUT', '/voltra/api/strips/${Uri.encodeComponent(mac)}', {'name': name});
+
+  Future<Map<String, dynamic>> setOutletPreferences(
+    String mac, int outlet, Map<String, dynamic> preferences,
+  ) => sendJson('PUT',
+      '/voltra/api/strips/${Uri.encodeComponent(mac)}/outlets/$outlet/preferences',
+      preferences);
+
+  Future<Map<String, dynamic>> setOutletConfirmed(
+    String mac, int outlet, bool on,
+  ) => sendJson('POST',
+      '/voltra/api/strips/${Uri.encodeComponent(mac)}/outlets/$outlet/state',
+      {'on': on, 'confirmed': true});
+
+  Future<Map<String, dynamic>> createRule(Map<String, dynamic> rule) =>
+      sendJson('POST', '/voltra/api/rules', rule);
+
   Future<Map<String, dynamic>> adoptStrip(String mac, String name) =>
       sendJson(
         'POST',
