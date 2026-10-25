@@ -60,6 +60,7 @@ class OutletManager:
 
     def preferences(self, mac: str, outlet: int, updates: dict[str, Any]) -> dict:
         self.store.require_strip_controllable(mac)
+        previous = self.store.outlet_preferences(mac, outlet)
         prefs = self.store.set_outlet_preferences(mac, outlet, updates)
         if self.automation:
             for kind in ("low_power", "high_power"):
@@ -81,9 +82,11 @@ class OutletManager:
                     "action": {"type": "audit"},
                     "managed_key": self._managed_key(mac, outlet, "high_power"),
                 })
-        current = self._current_relay(mac, outlet)
-        if current is True and "auto_off_minutes" in updates:
-            self._arm_auto_off(mac, outlet, prefs)
+        if previous["auto_off_minutes"] != prefs["auto_off_minutes"]:
+            if self._current_relay(mac, outlet) is True:
+                self._arm_auto_off(mac, outlet, prefs)
+            else:
+                self._cancel_auto_off(mac, outlet)
         self._emit("preferences_changed", self.store.normalize_mac(mac), outlet,
                    fields=list(updates))
         return prefs
