@@ -196,10 +196,17 @@ class APIHandler(BaseHTTPRequestHandler):
                 on = body.get("on")
                 if not isinstance(on, bool):
                     return self._json(400, {"error": "JSON field 'on' must be boolean"})
-                return self._json(200, self.app.mttl.get(_decoded(match.group(1))).set_outlet(int(match.group(2)), on))
+                mac = _decoded(match.group(1))
+                outlet = int(match.group(2))
+                return self._json(200, self.app.outlet_manager.command(mac, outlet, on)
+                                  if self.app.outlet_manager else self.app.mttl.get(mac).set_outlet(outlet, on))
             match = _ACTION_RE.match(path)
             if match:
-                return self._json(200, self.app.mttl.get(_decoded(match.group(1))).set_outlet(int(match.group(2)), match.group(3) == "on"))
+                mac = _decoded(match.group(1))
+                outlet = int(match.group(2))
+                on = match.group(3) == "on"
+                return self._json(200, self.app.outlet_manager.command(mac, outlet, on)
+                                  if self.app.outlet_manager else self.app.mttl.get(mac).set_outlet(outlet, on))
 
             if path == "/voltra/api/schedules":
                 if not self.app.automation:
@@ -682,6 +689,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
                     {**row, "preferences": self.store.outlet_preferences(mac, int(row["channel"]))}
                     for row in outlets
                 ],
+                "outlet_preferences": {str(channel): self.store.outlet_preferences(mac, channel) for channel in range(1, 5)},
                 "mapped_devices": mapped_devices,
                 "mapped_count": len(mapped_devices),
                 "total_power_w": round(sum(float(x.get("power_w") or 0) for x in outlets), 2),
