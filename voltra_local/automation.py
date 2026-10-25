@@ -143,6 +143,7 @@ class AutomationEngine:
             "max_queue_age_minutes": max(1, min(int(value.get("max_queue_age_minutes") or 360), 10080)),
             "created_at": utc_now(),
             "last_run_key": None,
+            "managed_key": str(value.get("managed_key") or "")[:128],
         }
         with self._lock:
             self._data["schedules"][item["id"]] = item
@@ -175,7 +176,7 @@ class AutomationEngine:
 
     def create_rule(self, value: dict) -> dict:
         kind = str(value.get("condition") or "").strip()
-        if kind not in {"offline", "weak_wifi", "low_power", "voltage_below", "voltage_above"}:
+        if kind not in {"offline", "weak_wifi", "low_power", "high_power", "voltage_below", "voltage_above"}:
             raise ValueError("unsupported rule condition")
         mac = self._clean_mac(value.get("mac"))
         outlet = value.get("outlet")
@@ -209,6 +210,7 @@ class AutomationEngine:
             "action": clean_action,
             "enabled": bool(value.get("enabled", True)),
             "created_at": utc_now(),
+            "managed_key": str(value.get("managed_key") or "")[:128],
         }
         with self._lock:
             self._data["rules"][item["id"]] = item
@@ -225,6 +227,27 @@ class AutomationEngine:
         if existed:
             self._event("rule_deleted", rule_id=rule_id)
         return existed
+
+    def delete_managed_schedules(self, managed_key: str) -> int:
+        with self._lock:
+            before = len(self._data["schedules"])
+            self._data["schedules"] = {k: v for k, v in self._data["schedules"].items()
+                                       if v.get("managed_key") != managed_key}
+            removed = before - len(self._data["schedules"])
+            if removed:
+                self._save_locked()
+            return removed
+
+    def delete_managed_rules(self, managed_key: str) -> int:
+        with self._lock:
+            matches = [key for key, rule in self._data["rules"].items()
+                       if rule.get("managed_key") == managed_key]
+            for key in matches:
+                self._data["rules"].pop(key, None)
+                self._rule_state.pop(key, None)
+            if matches:
+                self._save_locked()
+            return len(matches)
 
     def clear_queue(self) -> int:
         with self._lock:
@@ -323,6 +346,10 @@ class AutomationEngine:
                 return
             except (KeyError, RuntimeError, TimeoutError):
                 online = False
+            except (PermissionError, ValueError) as exc:
+                self._audit("automation", "command_blocked", mac=mac, outlet=outlet, source=source, error=str(exc))
+                self._event("automation_blocked", mac=mac, outlet=outlet, source=source, error=str(exc))
+                return
         if offline_policy == "queue":
             queued = {
                 "id": uuid4().hex,
@@ -355,6 +382,9 @@ class AutomationEngine:
                 try:
                     self.command_executor(item["mac"], int(item["outlet"]), bool(item["on"]), str(item.get("source") or "queue"))
                     self._event("queued_command_executed", item=item)
+                    remove = True
+                except (PermissionError, ValueError) as exc:
+                    self._audit("automation", "queued_command_blocked", item=item, error=str(exc))
                     remove = True
                 except Exception:
                     pass
@@ -404,7 +434,7 @@ class AutomationEngine:
             if not isinstance(value, (int, float)):
                 return False
             return float(value) < threshold if kind == "voltage_below" else float(value) > threshold
-        if kind == "low_power":
+        if kind in {"low_power", "high_power"}:
             outlets = snapshot.get("outlets") or []
             outlet = rule.get("outlet")
             if outlet is None:
@@ -413,8 +443,10 @@ class AutomationEngine:
                 row = next((x for x in outlets if int(x.get("channel") or 0) == int(outlet)), None)
                 if row is None:
                     return False
+                if row.get("relay") is not True:
+                    return False
                 value = float(row.get("power_w") or 0)
-            return value <= threshold
+            return value <= threshold if kind == "low_power" else value >= threshold
         return False
 
     def _fire_rule(self, rule: dict) -> None:
