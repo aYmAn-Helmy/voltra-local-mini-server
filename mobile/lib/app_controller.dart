@@ -56,6 +56,11 @@ class AppController extends ChangeNotifier {
   String appVersion = '—';
   String appBuild = '—';
   Timer? _poller;
+  int _activityTick = 0;
+  String? _lastAuditKey;
+  String? lastAlert;
+  int alertSerial = 0;
+  List<Map<String, dynamic>> activityFeed = [];
   int _refreshSerial = 0;
   final Map<String, bool> _pendingOutlets = {};
   final Set<String> busyOutlets = {};
@@ -183,6 +188,7 @@ class AppController extends ChangeNotifier {
         await _clearLegacyServer();
       }
       await refresh();
+      await refreshActivity(first: true);
       _startPolling();
     } catch (e) {
       if (identical(api, candidate)) {
@@ -219,6 +225,7 @@ class AppController extends ChangeNotifier {
     _poller?.cancel();
     _poller = Timer.periodic(const Duration(seconds: 4), (_) {
       refresh(silent: true);
+      if (++_activityTick % 3 == 0) refreshActivity();
     });
   }
 
@@ -309,6 +316,74 @@ class AppController extends ChangeNotifier {
     }
     if (failures > 0) {
       throw VoltraException('$failures outlet command(s) failed or could not be verified.');
+    }
+  }
+
+  Future<void> refreshActivity({bool first = false}) async {
+    final client = api;
+    if (client == null) return;
+    try {
+      final payload = await client.auditFeed();
+      if (!identical(client, api)) return;
+      final events = (payload['events'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      if (events.isEmpty) return;
+      final latest = events.last;
+      String fingerprint(Map<String, dynamic> value) =>
+          '${value['at']}:${value['category']}:${value['action']}:${value['details']}';
+      final key = fingerprint(latest);
+      final last = _lastAuditKey;
+      _lastAuditKey = key;
+      activityFeed = events.reversed
+          .where((e) => e['category'] == 'outlet' || (e['category'] == 'automation' && e['action'] == 'rule_fired'))
+          .take(50)
+          .toList();
+      if (first || last == null || last == key) {
+        notifyListeners();
+        return;
+      }
+      var foundLast = false;
+      final unseen = <Map<String, dynamic>>[];
+      for (final item in events.reversed) {
+        if (fingerprint(item) == last) {
+          foundLast = true;
+          break;
+        }
+        unseen.add(item);
+      }
+      if (!foundLast) {
+        // Lost history between polls: do not replay old commands as new alerts.
+        notifyListeners();
+        return;
+      }
+      for (final item in unseen.reversed) {
+        final details = item['details'];
+        if (details is! Map) continue;
+        final action = item['action']?.toString() ?? '';
+        final mac = details['mac']?.toString() ?? '';
+        final channel = int.tryParse('${details['outlet']}');
+        if (channel == null) continue;
+        if (item['category'] != 'outlet' && action != 'rule_fired') continue;
+        final matching = strips.where((x) => x['mac'] == mac).toList();
+        if (matching.isEmpty) continue;
+        final prefs = matching.first['outlet_preferences'];
+        if (prefs is Map && (prefs['$channel'] as Map?)?['notify'] == false) continue;
+        final name = ((prefs is Map ? (prefs['$channel'] as Map?)?['name'] : null) ??
+            'المخرج $channel').toString();
+        lastAlert = action == 'power_on'
+            ? 'تم تشغيل $name'
+            : action == 'power_off'
+                ? 'تم إيقاف $name'
+                : action == 'rule_fired'
+                    ? 'تنبيه استهلاك: $name'
+                    : 'تم تعديل إعدادات $name';
+        alertSerial++;
+      }
+      notifyListeners();
+    } catch (_) {
+      // Alerts must never block relay control or normal screen refresh.
     }
   }
 
