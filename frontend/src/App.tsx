@@ -5,6 +5,7 @@ import { AuthError, api, getApiToken, setApiToken, subscribeEvents } from "./api
 import { AddStripView, AutomationView, DashboardView, EnergyView, RoomsView, SettingsView } from "./views";
 import { AppHeader, BottomNav, ConfirmDialog, Modal } from "./ui";
 import { DesktopDashboard, DesktopHeader, DesktopSidebar } from "./desktop";
+import { OutletManagerDialog } from "./outlet_manager";
 import { initialLocale, LocaleContext, persistLocale, t } from "./i18n";
 import type { Locale } from "./i18n";
 import type { AutomationSnapshot, Overview, Strip, ViewName } from "./types";
@@ -61,6 +62,7 @@ export default function App() {
   const [busyChannels, setBusyChannels] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<{ message: string; error: boolean } | null>(null);
   const [editingStrip, setEditingStrip] = useState<Strip | null>(null);
+  const [editingOutlet, setEditingOutlet] = useState<{ strip: Strip; channel: number } | null>(null);
   const [confirm, setConfirm] = useState<ConfirmState>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const [tokenDraft, setTokenDraft] = useState(() => getApiToken());
@@ -160,7 +162,7 @@ export default function App() {
     });
   }, [editingStrip]);
 
-  async function sendOutlet(strip: Strip, channel: number, on: boolean): Promise<boolean> {
+  async function sendOutlet(strip: Strip, channel: number, on: boolean, confirmed = false): Promise<boolean> {
     const key = `${strip.mac}:${channel}`;
     if (busyRef.current.has(key)) return false;
     busyRef.current.add(key);
@@ -168,7 +170,7 @@ export default function App() {
     setBusyChannels(new Set(busyRef.current));
     setOverview((old) => old ? updateOutletLocal(old, strip.mac, channel, on) : old);
     try {
-      const result = await api.setOutlet(strip.mac, channel, on);
+      const result = await api.setOutlet(strip.mac, channel, on, confirmed);
       // An ACK is not an electrical state verification. Never claim confirmed success without GETINFO.
       if (result.metrics?.last_command_confirmed !== true) {
         notify(t(locale, "Command sent; outlet state is not verified yet."), true);
@@ -185,6 +187,28 @@ export default function App() {
   }
 
   async function setOutlet(strip: Strip, channel: number, on: boolean): Promise<void> {
+    const prefs = strip.outlets.find((x) => x.channel === channel)?.preferences
+      || strip.outlet_preferences?.[String(channel)];
+    if (prefs?.locked) {
+      notify(t(locale, "This outlet is locked"), true);
+      return;
+    }
+    if (!on && prefs?.protected) {
+      setConfirm({
+        title: t(locale, "Protected outlet"),
+        message: t(locale, "Confirm switching off the protected outlet?"),
+        confirmLabel: t(locale, "Switch OFF"),
+        danger: true,
+        action: async () => {
+          try {
+            await sendOutlet(strip, channel, on, true);
+          } finally {
+            await refreshOverview().catch((error) => notify(String(error), true));
+          }
+        },
+      });
+      return;
+    }
     try {
       await sendOutlet(strip, channel, on);
     } finally {
@@ -205,7 +229,7 @@ export default function App() {
           for (const channel of [1, 2, 3, 4]) {
             const current = strip.outlets?.find((item) => Number(item.channel) === channel);
             if (Boolean(current?.relay) === on) continue;
-            if (!(await sendOutlet(strip, channel, on))) failed++;
+            if (!(await sendOutlet(strip, channel, on, !on))) failed++;
           }
         } finally {
           await refreshOverview().catch((error) => notify(String(error), true));
@@ -355,6 +379,7 @@ export default function App() {
               onToggleOutlet={setOutlet}
               onSetAll={requestSetAll}
               onStripSettings={setEditingStrip}
+              onConfigureOutlet={(strip, channel) => setEditingOutlet({ strip, channel })}
             /></div>
           )}
           {view === "dashboard" && desktop && (
@@ -368,6 +393,7 @@ export default function App() {
               onToggleOutlet={setOutlet}
               onSetAll={requestSetAll}
               onStripSettings={setEditingStrip}
+              onConfigureOutlet={(strip, channel) => setEditingOutlet({ strip, channel })}
             /></div>
           )}
           {view === "energy" && <EnergyView overview={overview} notify={notify} />}
@@ -421,6 +447,15 @@ export default function App() {
           </div>
         )}
       </Modal>
+
+      <OutletManagerDialog
+        selection={editingOutlet}
+        overview={overview}
+        automation={automation}
+        onClose={() => setEditingOutlet(null)}
+        onChanged={refreshAll}
+        notify={notify}
+      />
 
       <ConfirmDialog
         open={Boolean(confirm)}
