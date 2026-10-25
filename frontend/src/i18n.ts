@@ -226,12 +226,10 @@ const arabic: Record<string, string> = {
   "Reconnect policy runs only when the strip reconnects to Voltra, not on every power loss.": "السياسة تُنفَّذ عند إعادة الاتصال بفولترا، وليس عند كل انقطاع للكهرباء.",
   "Quick timer": "مؤقت سريع",
   "Minutes": "دقائق",
-  "Action": "الإجراء",
   "Switch OFF": "إيقاف",
   "Switch ON": "تشغيل",
   "Start timer": "بدء المؤقت",
   "Weekly schedule": "الجدول الأسبوعي",
-  "Time": "الوقت",
   "Mon": "إث",
   "Tue": "ثل",
   "Wed": "أر",
@@ -253,8 +251,6 @@ const arabic: Record<string, string> = {
   "Schedule deleted": "تم حذف الجدول",
   "Scene created": "تم حفظ المشهد",
   "Delete": "حذف",
-  "Close": "إغلاق",
-  "Save changes": "حفظ التغييرات",
   "This outlet is locked": "المخرج مقفل",
   "Confirm switching off the protected outlet?": "هل تؤكد فصل الكهرباء عن هذا المخرج المحمي؟",};
 
