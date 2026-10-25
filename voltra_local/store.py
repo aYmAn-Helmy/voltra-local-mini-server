@@ -507,6 +507,8 @@ class ConfigStore:
                 if not math.isfinite(number) or not lower <= number <= upper:
                     raise ValueError(f"{key} outside permitted range")
                 value[key] = int(number) if key.endswith("_minutes") or key.endswith("_s") else number
+        if value["protected"] and (value["auto_off_minutes"] > 0 or value["low_power_enabled"] or value["restore_policy"] != "none"):
+            raise ValueError("Protected outlets cannot use auto-off, low-power shutdown or reconnect overrides")
         with self._lock:
             strip = self._data["strips"].get(mac)
             if not isinstance(strip, dict):
