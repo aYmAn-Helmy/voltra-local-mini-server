@@ -30,6 +30,7 @@ _ACTION_RE = re.compile(r"^/api/devices/([^/]+)/outlets/([1-4])/(on|off)$")
 # Namespaced API for embedding into the PlayStation management project.
 _V_STRIP_RE = re.compile(r"^/voltra/api/strips/([^/]+)$")
 _V_STRIP_STATE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/state$")
+_V_OUTLET_PREF_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/preferences$")
 _V_STRIP_ADOPT_RE = re.compile(r"^/voltra/api/strips/([^/]+)/adopt$")
 _V_STRIP_ENABLED_RE = re.compile(r"^/voltra/api/strips/([^/]+)/enabled$")
 _V_STRIP_IGNORE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/ignore$")
@@ -144,6 +145,10 @@ class APIHandler(BaseHTTPRequestHandler):
                 return self._json(200, {"events": self.app.audit.recent(limit)})
             if path == "/voltra/api/backup":
                 return self._json(200, self.app.backup_payload())
+            match = _V_OUTLET_PREF_RE.match(path)
+            if match:
+                mac = _decoded(match.group(1))
+                return self._json(200, self.app.store.outlet_preferences(mac)[match.group(2)])
             if path == "/voltra/api/strips":
                 return self._json(200, {"strips": self.app.list_strips()})
             if path == "/voltra/api/ps4":
@@ -276,7 +281,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 if not isinstance(on, bool):
                     return self._json(400, {"error": "JSON field 'on' must be boolean"})
                 mac = _decoded(match.group(1))
-                self.app.store.require_strip_controllable(mac)
+                self.app.store.require_outlet_action(mac, int(match.group(2)), on, confirmed=body.get("confirmed") is True)
                 return self._json(200, self.app.mttl.get(mac).set_outlet(int(match.group(2)), on))
             match = _V_POWER_ACTION_RE.match(path)
             if match:
@@ -307,6 +312,13 @@ class APIHandler(BaseHTTPRequestHandler):
             self.app.audit_request("PUT", path, client_ip)
             body = self._read_json()
 
+            match = _V_OUTLET_PREF_RE.match(path)
+            if match:
+                mac = _decoded(match.group(1))
+                prefs = self.app.store.set_outlet_preferences(mac, int(match.group(2)), body)
+                if self.app.event_bus:
+                    self.app.event_bus.publish("outlet_preferences_changed", mac=self.app.store.normalize_mac(mac), outlet=int(match.group(2)))
+                return self._json(200, prefs)
             match = _V_STRIP_PREFS_RE.match(path)
             if match:
                 mac = _decoded(match.group(1))
@@ -634,7 +646,11 @@ class VoltraHTTPServer(ThreadingHTTPServer):
             mapped_devices = [
                 device_id for device_id, mapping in mappings.items() if mapping.get("mac") == mac
             ]
-            outlets = (current or {}).get("outlets", [])
+            outlets = [dict(item) for item in (current or {}).get("outlets", [])]
+            outlet_prefs = meta.get("outlet_preferences") or {}
+            for outlet in outlets:
+                outlet["preferences"] = dict(outlet_prefs.get(str(outlet.get("channel"))) or {})
+
             health = health_from_snapshot(current) if current else {"score": 0, "status": "offline", "reasons": ["device_offline"]}
             item = {
                 "mac": mac,
