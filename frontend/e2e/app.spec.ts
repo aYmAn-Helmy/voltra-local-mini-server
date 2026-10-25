@@ -88,3 +88,32 @@ test("Arabic interface toggles direction without changing the active layout", as
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
+
+test("outlet editor saves Arabic names through the real local API", async ({ page, request }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Single hardware-demo integration run");
+  await expect.poll(async () => {
+    const response = await request.get("/voltra/api/overview");
+    const value = await response.json();
+    return value.strips.some((strip: { online: boolean }) => strip.online);
+  }, { timeout: 15000 }).toBe(true);
+  const overview = await (await request.get("/voltra/api/overview")).json();
+  const strip = overview.strips.find((item: { online: boolean }) => item.online);
+  if (!strip.managed) {
+    const adopted = await request.post("/voltra/api/strips/" + strip.mac + "/adopt", {
+      data: { name: "Demo Test Strip" },
+    });
+    expect(adopted.ok()).toBeTruthy();
+  }
+  await page.goto("/voltra/");
+  const outlet = page.getByRole("button", { name: /Settings for (Outlet 1|بلايستيشن ٥)/ });
+  await expect(outlet).toBeVisible();
+  await outlet.click();
+  const field = page.getByLabel("Outlet name");
+  await field.fill("بلايستيشن ٥");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("button", { name: "Close", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByText("بلايستيشن ٥")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("بلايستيشن ٥")).toBeVisible();
+});
