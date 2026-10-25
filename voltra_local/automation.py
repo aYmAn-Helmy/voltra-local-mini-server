@@ -443,7 +443,7 @@ class AutomationEngine:
                 row = next((x for x in outlets if int(x.get("channel") or 0) == int(outlet)), None)
                 if row is None:
                     return False
-                if row.get("relay") is not True:
+                if row.get("relay") is False:
                     return False
                 value = float(row.get("power_w") or 0)
             return value <= threshold if kind == "low_power" else value >= threshold
