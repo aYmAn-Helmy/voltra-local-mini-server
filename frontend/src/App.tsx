@@ -355,6 +355,7 @@ export default function App() {
               onToggleOutlet={setOutlet}
               onSetAll={requestSetAll}
               onStripSettings={setEditingStrip}
+              onRefresh={refreshOverview}
             /></div>
           )}
           {view === "dashboard" && desktop && (
@@ -368,6 +369,7 @@ export default function App() {
               onToggleOutlet={setOutlet}
               onSetAll={requestSetAll}
               onStripSettings={setEditingStrip}
+              onRefresh={refreshOverview}
             /></div>
           )}
           {view === "energy" && <EnergyView overview={overview} notify={notify} />}
