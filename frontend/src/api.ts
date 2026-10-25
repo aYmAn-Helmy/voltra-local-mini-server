@@ -4,6 +4,7 @@ import type {
   EnergySummary,
   Overview,
   Outlet,
+  OutletPreferences,
   Settings,
 } from "./types";
 
@@ -66,6 +67,16 @@ export const api = {
       body: JSON.stringify({ on }),
     }),
 
+  outletPreferences: (mac: string, outlet: number, value: OutletPreferences) =>
+    request<OutletPreferences>(`${API}/strips/${encodeURIComponent(mac)}/outlets/${outlet}/preferences`, {
+      method: "PUT",
+      body: JSON.stringify(value),
+    }),
+  setOutletConfirmed: (mac: string, outlet: number, on: boolean) =>
+    request<{ metrics?: { last_command_confirmed?: boolean } }>(`${API}/strips/${encodeURIComponent(mac)}/outlets/${outlet}/state`, {
+      method: "POST",
+      body: JSON.stringify({ on, confirmed: true }),
+    }),
   adoptStrip: (mac: string, name: string) =>
     request(`${API}/strips/${encodeURIComponent(mac)}/adopt`, {
       method: "POST",
