@@ -171,6 +171,9 @@ class VoltraApi {
   Future<Map<String, dynamic>> saveOutletPrefs(String mac, int channel, Map<String, dynamic> changes) =>
       sendJson('PUT', '/voltra/api/strips/${Uri.encodeComponent(mac)}/outlets/$channel/preferences', changes);
 
+  Future<Map<String, dynamic>> auditFeed() =>
+      getJson('/voltra/api/audit', query: {'limit': '80'});
+
   Future<Map<String, dynamic>> outletActivity(String mac, int channel) =>
       getJson('/voltra/api/strips/${Uri.encodeComponent(mac)}/outlets/$channel/activity');
 
