@@ -725,7 +725,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
             outlet = int(action.get("outlet") or 0)
             on = bool(action.get("on"))
             try:
-                self.store.require_strip_controllable(mac)
+                self.store.require_outlet_action(mac, outlet, on, automated=True)
                 snapshot = self.mttl.get(mac).set_outlet(outlet, on)
                 results.append({"mac": mac, "outlet": outlet, "on": on, "ok": True, "device": snapshot})
             except Exception as exc:
