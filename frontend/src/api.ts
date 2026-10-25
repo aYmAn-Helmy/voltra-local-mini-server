@@ -4,6 +4,7 @@ import type {
   EnergySummary,
   Overview,
   Outlet,
+  OutletPreferences,
   Settings,
 } from "./types";
 
@@ -60,10 +61,30 @@ export const api = {
   automation: () => request<AutomationSnapshot>(`${API}/automation`),
   settings: () => request<Settings>(`${API}/settings`),
 
-  setOutlet: (mac: string, outlet: number, on: boolean) =>
+  setOutlet: (mac: string, outlet: number, on: boolean, confirmProtected = false) =>
     request<{ metrics?: { last_command_confirmed?: boolean | null; last_command_latency_ms?: number | null }; outlets?: Outlet[] }>(`${API}/strips/${encodeURIComponent(mac)}/outlets/${outlet}/state`, {
       method: "POST",
-      body: JSON.stringify({ on }),
+      body: JSON.stringify({ on, confirm_protected: confirmProtected }),
+    }),
+
+  outletPreferences: (mac: string, channel: number) =>
+    request<OutletPreferences>(`${API}/strips/${encodeURIComponent(mac)}/outlets/${channel}/preferences`),
+
+  saveOutletPreferences: (mac: string, channel: number, changes: Partial<OutletPreferences>) =>
+    request<OutletPreferences>(`${API}/strips/${encodeURIComponent(mac)}/outlets/${channel}/preferences`, {
+      method: "PUT",
+      body: JSON.stringify(changes),
+    }),
+
+  outletActivity: (mac: string, channel: number) =>
+    request<{ events: Array<{ at: string; action: string; category: string; details: Record<string, unknown> }> }>(
+      `${API}/strips/${encodeURIComponent(mac)}/outlets/${channel}/activity`,
+    ),
+
+  createScene: (value: { name: string; actions: Array<{ mac: string; outlet: number; on: boolean }> }) =>
+    request<{ id: string; name: string }>(`${API}/scenes`, {
+      method: "POST",
+      body: JSON.stringify(value),
     }),
 
   adoptStrip: (mac: string, name: string) =>
@@ -184,7 +205,7 @@ export const api = {
 };
 
 export function subscribeEvents(
-  onEvent: () => void,
+  onEvent: (event?: { type?: string; action?: string; mac?: string; outlet?: number; on?: boolean }) => void,
   onUnauthorized?: () => void,
 ): () => void {
   const controller = new AbortController();
@@ -222,8 +243,13 @@ export function subscribeEvents(
           while (splitAt >= 0) {
             const packet = buffer.slice(0, splitAt);
             buffer = buffer.slice(splitAt + 2);
-            if (packet.split("\n").some((line) => line.startsWith("data:"))) {
-              onEvent();
+            const line = packet.split("\n").find((item) => item.startsWith("data:"));
+            if (line) {
+              try {
+                onEvent(JSON.parse(line.slice(5).trim()));
+              } catch {
+                onEvent();
+              }
             }
             splitAt = buffer.indexOf("\n\n");
           }

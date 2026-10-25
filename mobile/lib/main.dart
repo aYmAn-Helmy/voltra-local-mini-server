@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'app_controller.dart';
+import 'outlet_settings_sheet.dart';
 import 'security_controller.dart';
 import 'security_ui.dart';
 import 'voltra_api.dart';
@@ -525,6 +526,61 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int index = 0;
+  int _seenAlert = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _seenAlert = widget.controller.alertSerial;
+    widget.controller.addListener(_onAlerts);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onAlerts);
+    super.dispose();
+  }
+
+  void _onAlerts() {
+    if (widget.controller.alertSerial <= _seenAlert) return;
+    _seenAlert = widget.controller.alertSerial;
+    final message = widget.controller.lastAlert;
+    if (message == null || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(message, textDirection: TextDirection.rtl),
+        backgroundColor: const Color(0xFF174A35),
+      ));
+    });
+  }
+
+  void _showNotifications() {
+    showModalBottomSheet<void>(
+      context: context, useSafeArea: true, isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F1726),
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.sizeOf(ctx).height * 0.75,
+        child: Directionality(textDirection: TextDirection.rtl,
+          child: Column(children: [
+            ListTile(title: const Text('سجل الإشعارات والأحداث', style: TextStyle(fontWeight: FontWeight.bold)),
+              trailing: IconButton(icon: const Icon(Icons.refresh), onPressed: () async {
+                await widget.controller.refreshActivity();
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) _showNotifications();
+              })),
+            Expanded(child: ListView(
+              children: widget.controller.activityFeed.map((event) => ListTile(
+                leading: const Icon(Icons.notifications_active_outlined, color: Color(0xFF39E27D)),
+                title: Text(event['action']?.toString().replaceAll('_', ' ') ?? ''),
+                subtitle: Text('${event['at'] ?? ''}', textDirection: TextDirection.ltr),
+              )).toList(),
+            )),
+          ]),
+        ),
+      ),
+    );
+  }
 
   String get title => switch (index) {
         0 => 'My strips',
@@ -580,6 +636,11 @@ class _MainShellState extends State<MainShell> {
         ),
         toolbarHeight: 78,
         actions: [
+          IconButton(
+            tooltip: 'الإشعارات',
+            onPressed: _showNotifications,
+            icon: const Icon(Icons.notifications_outlined),
+          ),
           IconButton(
             tooltip: 'Refresh',
             onPressed:
@@ -937,11 +998,33 @@ class StripCard extends StatelessWidget {
     int channel,
     bool on,
   ) async {
+    final rawPrefs = outlet(channel)?['preferences'];
+    final prefs = rawPrefs is Map ? rawPrefs : <String, dynamic>{};
+    if (prefs['locked'] == true) {
+      _snack(context, 'هذا المخرج مقفل', error: true);
+      return;
+    }
+    var confirmed = false;
+    if (!on && prefs['protected'] == true) {
+      confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('مخرج محمي'),
+          content: const Text('هل تريد إيقاف الكهرباء عن هذا المخرج؟'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تأكيد الفصل')),
+          ],
+        ),
+      ) == true;
+      if (!confirmed) return;
+    }
     try {
       await controller.setOutlet(
         strip['mac']?.toString() ?? '',
         channel,
         on,
+        confirmProtected: confirmed,
       );
     } catch (e) {
       if (context.mounted) _snack(context, e.toString(), error: true);
@@ -976,6 +1059,47 @@ class StripCard extends StatelessWidget {
     }
   }
 
+  void _outletSettings(BuildContext context, int channel) {
+    showModalBottomSheet<void>(
+      context: context, useSafeArea: true, isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F1726),
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.sizeOf(ctx).height * 0.86,
+        child: OutletSettingsSheet(controller: controller, strip: strip, channel: channel),
+      ),
+    );
+  }
+
+  Future<void> _renameStrip(BuildContext context) async {
+    final edit = TextEditingController(text: strip["name"]?.toString() ?? "");
+    var rtl = RegExp(r'[\u0600-\u06FF]').hasMatch(edit.text);
+    try {
+      await showDialog<void>(context: context, builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, change) => AlertDialog(
+          title: const Text("تغيير اسم المشترك"),
+          content: TextField(
+            controller: edit, maxLength: 80,
+            textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+            textAlign: rtl ? TextAlign.right : TextAlign.left,
+            decoration: const InputDecoration(labelText: "اسم المشترك بالعربي أو الإنجليزي"),
+            onChanged: (value) => change(() => rtl = RegExp(r'[\u0600-\u06FF]').hasMatch(value)),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("إلغاء")),
+            FilledButton(onPressed: () async {
+              try {
+                await controller.renameStrip(strip["mac"]?.toString() ?? "", edit.text);
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              } catch (e) {
+                if (dialogContext.mounted) _snack(dialogContext, e.toString(), error: true);
+              }
+            }, child: const Text("حفظ")),
+          ],
+        ),
+      ));
+    } finally { edit.dispose(); }
+  }
+
   @override
   Widget build(BuildContext context) {
     final online = strip['online'] == true;
@@ -1003,6 +1127,10 @@ class StripCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     strip['name']?.toString() ?? strip['mac']?.toString() ?? '',
+                    textDirection: RegExp(r'[\u0600-\u06FF]').hasMatch(strip['name']?.toString() ?? '')
+                        ? TextDirection.rtl : TextDirection.ltr,
+                    textAlign: RegExp(r'[\u0600-\u06FF]').hasMatch(strip['name']?.toString() ?? '')
+                        ? TextAlign.right : TextAlign.left,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -1010,6 +1138,11 @@ class StripCard extends StatelessWidget {
                       fontSize: 18,
                     ),
                   ),
+                ),
+                IconButton(
+                  tooltip: "تغيير اسم المشترك",
+                  onPressed: () => _renameStrip(context),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
                 ),
                 _StatusPill(text: status, active: online),
               ],
@@ -1049,7 +1182,8 @@ class StripCard extends StatelessWidget {
                   _OutletTile(
                     channel: channel,
                     data: outlet(channel),
-                    enabled: online && enabled,
+                    enabled: online && enabled && outlet(channel)?['preferences']?['locked'] != true,
+                    onConfigure: () => _outletSettings(context, channel),
                     busy: controller.outletBusy(strip["mac"]?.toString() ?? "", channel),
                     onToggle: (value) => _toggle(context, channel, value),
                   ),
@@ -1097,12 +1231,14 @@ class _OutletTile extends StatelessWidget {
   final Map<String, dynamic>? data;
   final bool enabled;
   final bool busy;
+  final VoidCallback onConfigure;
   final ValueChanged<bool> onToggle;
   const _OutletTile({
     required this.channel,
     required this.data,
     required this.enabled,
     required this.busy,
+    required this.onConfigure,
     required this.onToggle,
   });
 
@@ -1110,6 +1246,14 @@ class _OutletTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final on = data?['relay'] == true;
     final power = _num(data?['power_w']);
+    final rawPrefs = data?['preferences'];
+    final prefs = rawPrefs is Map ? rawPrefs : <String, dynamic>{};
+    final customName = prefs['name']?.toString() ?? '';
+    final iconName = prefs['icon']?.toString() ?? 'plug';
+    const iconSymbols = <String, String>{
+      'plug': '🔌', 'gamepad': '🎮', 'tv': '📺', 'pc': '💻',
+      'router': '📡', 'lamp': '💡', 'fan': '🌀', 'other': '⚡',
+    };
     return Material(
       color: on ? const Color(0xFF15332D) : const Color(0xFF151E30),
       shape: RoundedRectangleBorder(
@@ -1122,11 +1266,13 @@ class _OutletTile extends StatelessWidget {
       child: InkWell(
         onTap: enabled && !busy ? () => onToggle(!on) : null,
         borderRadius: BorderRadius.circular(15),
+        onLongPress: onConfigure,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
               Container(
                 width: 34,
                 height: 34,
@@ -1150,9 +1296,20 @@ class _OutletTile extends StatelessWidget {
                       on ? const Color(0xFF39E27D) : const Color(0xFF657087),
                 ),
               ),
+              IconButton(
+                tooltip: 'إعدادات المخرج',
+                icon: const Icon(Icons.tune, size: 18),
+                onPressed: onConfigure,
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                padding: EdgeInsets.zero,
+              ),
+              ]),
               const Spacer(),
               Text(
-                'Outlet $channel',
+                customName.isNotEmpty ? customName : '${iconSymbols[iconName] ?? "🔌"} Outlet $channel',
+                textDirection: RegExp(r'[\u0600-\u06FF]').hasMatch(customName)
+                    ? TextDirection.rtl : TextDirection.ltr,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
@@ -1971,6 +2128,8 @@ class _AddStripPageState extends State<AddStripPage> {
                       const SizedBox(height: 12),
                       TextField(
                         controller: nameFor(strip),
+                        textDirection: TextDirection.rtl,
+                        textAlign: TextAlign.right,
                         decoration:
                             const InputDecoration(labelText: 'Strip name'),
                       ),

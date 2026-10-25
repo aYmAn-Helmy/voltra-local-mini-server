@@ -56,6 +56,11 @@ class AppController extends ChangeNotifier {
   String appVersion = '—';
   String appBuild = '—';
   Timer? _poller;
+  int _activityTick = 0;
+  String? _lastAuditKey;
+  String? lastAlert;
+  int alertSerial = 0;
+  List<Map<String, dynamic>> activityFeed = [];
   int _refreshSerial = 0;
   final Map<String, bool> _pendingOutlets = {};
   final Set<String> busyOutlets = {};
@@ -183,6 +188,7 @@ class AppController extends ChangeNotifier {
         await _clearLegacyServer();
       }
       await refresh();
+      await refreshActivity(first: true);
       _startPolling();
     } catch (e) {
       if (identical(api, candidate)) {
@@ -219,6 +225,7 @@ class AppController extends ChangeNotifier {
     _poller?.cancel();
     _poller = Timer.periodic(const Duration(seconds: 4), (_) {
       refresh(silent: true);
+      if (++_activityTick % 3 == 0) refreshActivity();
     });
   }
 
@@ -247,7 +254,7 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<bool> _sendOutlet(String mac, int outlet, bool on) async {
+  Future<bool> _sendOutlet(String mac, int outlet, bool on, {bool confirmProtected = false}) async {
     final client = api;
     if (client == null) throw const VoltraException('Connect to Voltra first.');
     final key = '$mac:$outlet';
@@ -258,7 +265,7 @@ class AppController extends ChangeNotifier {
     _applyOutlet(overview, mac, outlet, on);
     notifyListeners();
     try {
-      final result = await client.setOutlet(mac, outlet, on);
+      final result = await client.setOutlet(mac, outlet, on, confirmProtected: confirmProtected);
       final metrics = result['metrics'];
       if (metrics is! Map || metrics['last_command_confirmed'] != true) {
         throw const VoltraException('Command sent, but relay state was not verified. Refresh to check.');
@@ -271,9 +278,9 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  Future<void> setOutlet(String mac, int outlet, bool on) async {
+  Future<void> setOutlet(String mac, int outlet, bool on, {bool confirmProtected = false}) async {
     try {
-      await _sendOutlet(mac, outlet, on);
+      await _sendOutlet(mac, outlet, on, confirmProtected: confirmProtected);
     } finally {
       await refresh(silent: true);
     }
@@ -299,7 +306,7 @@ class AppController extends ChangeNotifier {
     try {
       for (final channel in targets) {
         try {
-          if (!await _sendOutlet(mac, channel, on)) failures++;
+          if (!await _sendOutlet(mac, channel, on, confirmProtected: !on)) failures++;
         } catch (_) {
           failures++;
         }
@@ -310,6 +317,112 @@ class AppController extends ChangeNotifier {
     if (failures > 0) {
       throw VoltraException('$failures outlet command(s) failed or could not be verified.');
     }
+  }
+
+  Future<void> refreshActivity({bool first = false}) async {
+    final client = api;
+    if (client == null) return;
+    try {
+      final payload = await client.auditFeed();
+      if (!identical(client, api)) return;
+      final events = (payload['events'] as List? ?? const [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      if (events.isEmpty) return;
+      final latest = events.last;
+      String fingerprint(Map<String, dynamic> value) =>
+          '${value['at']}:${value['category']}:${value['action']}:${value['details']}';
+      final key = fingerprint(latest);
+      final last = _lastAuditKey;
+      _lastAuditKey = key;
+      activityFeed = events.reversed
+          .where((e) => e['category'] == 'outlet' || (e['category'] == 'automation' && e['action'] == 'rule_fired'))
+          .take(50)
+          .toList();
+      if (first || last == null || last == key) {
+        notifyListeners();
+        return;
+      }
+      var foundLast = false;
+      final unseen = <Map<String, dynamic>>[];
+      for (final item in events.reversed) {
+        if (fingerprint(item) == last) {
+          foundLast = true;
+          break;
+        }
+        unseen.add(item);
+      }
+      if (!foundLast) {
+        // Lost history between polls: do not replay old commands as new alerts.
+        notifyListeners();
+        return;
+      }
+      for (final item in unseen.reversed) {
+        final details = item['details'];
+        if (details is! Map) continue;
+        final action = item['action']?.toString() ?? '';
+        final mac = details['mac']?.toString() ?? '';
+        final channel = int.tryParse('${details['outlet']}');
+        if (channel == null) continue;
+        if (item['category'] != 'outlet' && action != 'rule_fired') continue;
+        final matching = strips.where((x) => x['mac'] == mac).toList();
+        if (matching.isEmpty) continue;
+        final prefs = matching.first['outlet_preferences'];
+        final configured = prefs is Map ? prefs['$channel'] : null;
+        if (configured is Map && configured['notify'] == false) continue;
+        final name = configured is Map && configured['name']?.toString().isNotEmpty == true
+            ? configured['name'].toString() : 'المخرج $channel';
+        lastAlert = action == 'power_on'
+            ? 'تم تشغيل $name'
+            : action == 'power_off'
+                ? 'تم إيقاف $name'
+                : action == 'rule_fired'
+                    ? 'تنبيه استهلاك: $name'
+                    : 'تم تعديل إعدادات $name';
+        alertSerial++;
+      }
+      notifyListeners();
+    } catch (_) {
+      // Alerts must never block relay control or normal screen refresh.
+    }
+  }
+
+  Future<void> renameStrip(String mac, String name) async {
+    if (name.trim().isEmpty) throw const VoltraException('اسم المشترك مطلوب');
+    final client = api;
+    if (client == null) throw const VoltraException('Server not connected.');
+    await client.renameStrip(mac, name.trim());
+    await refresh(silent: true);
+  }
+
+  Future<Map<String, dynamic>> getOutletPrefs(String mac, int channel) async {
+    final client = api;
+    if (client == null) throw const VoltraException('Server not connected.');
+    return client.getOutletPrefs(mac, channel);
+  }
+
+  Future<void> saveOutletPrefs(String mac, int channel, Map<String, dynamic> changes) async {
+    final client = api;
+    if (client == null) throw const VoltraException('Server not connected.');
+    await client.saveOutletPrefs(mac, channel, changes);
+    await refresh(silent: true);
+  }
+
+  Future<List<Map<String, dynamic>>> outletActivity(String mac, int channel) async {
+    final client = api;
+    if (client == null) throw const VoltraException('Server not connected.');
+    final result = await client.outletActivity(mac, channel);
+    final items = result['events'];
+    if (items is! List) return [];
+    return items.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+  }
+
+  Future<void> createScene(String name, String mac, int channel, bool on) async {
+    final client = api;
+    if (client == null) throw const VoltraException('Server not connected.');
+    await client.createScene(name, mac, channel, on);
+    await refresh(silent: true);
   }
 
   Future<void> adopt(String mac, String name) async {

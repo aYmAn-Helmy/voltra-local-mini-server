@@ -86,6 +86,7 @@ export function DashboardView({
   onToggleOutlet,
   onSetAll,
   onStripSettings,
+  onConfigureOutlet,
 }: {
   overview: Overview;
   automation: AutomationSnapshot;
@@ -96,6 +97,7 @@ export function DashboardView({
   onToggleOutlet: (strip: Strip, outlet: number, on: boolean) => void;
   onSetAll: (strip: Strip, on: boolean) => void;
   onStripSettings: (strip: Strip) => void;
+  onConfigureOutlet: (strip: Strip, channel: number) => void;
 }) {
   const locale = useLocale();
   const strips = activeStrips(overview);
@@ -165,6 +167,7 @@ export function DashboardView({
             onToggle={(outlet, on) => onToggleOutlet(strip, outlet, on)}
             onSetAll={(on) => onSetAll(strip, on)}
             onSettings={() => onStripSettings(strip)}
+            onConfigureOutlet={(channel) => onConfigureOutlet(strip, channel)}
           />
         ))}
         {!filtered.length && (

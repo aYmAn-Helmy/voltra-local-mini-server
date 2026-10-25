@@ -337,6 +337,8 @@ class DeviceSession:
         time.sleep(0.15)
         try:
             self.query_info()
+            if getattr(self.server, "on_device_ready", None):
+                self.server.on_device_ready(self)
         except Exception as exc:
             print(f"[TCP] initial getinfo failed for {self.mac}: {exc}")
         try:
@@ -363,6 +365,7 @@ class MTTLServer:
         self.event_bus = event_bus
         self.audit = audit
         self.on_device_seen = on_device_seen
+        self.on_device_ready = None
         self._device_stats: dict[str, dict] = {}
         self._listen: socket.socket | None = None
         self._stop = threading.Event()

@@ -237,17 +237,21 @@ function OutletTile({
   label,
   onToggle,
   busy,
+  onConfigure,
 }: {
   strip: Strip;
   outlet: Outlet | undefined;
   label: string;
   onToggle: () => void;
   busy: boolean;
+  onConfigure: () => void;
 }) {
   const locale = useLocale();
   const on = Boolean(outlet?.relay);
-  const canControl = strip.online && strip.enabled && strip.state === "active" && !busy;
+  const canControl = strip.online && strip.enabled && strip.state === "active" && !busy && !outlet?.preferences?.locked;
+  const icons: Record<string, string> = { plug: "🔌", gamepad: "🎮", tv: "📺", pc: "💻", router: "📡", lamp: "💡", fan: "🌀", other: "⚡" };
   return (
+    <div className="outlet-shell">
     <button
       className={`outlet-tile ${on ? "on" : ""}`}
       disabled={!canControl}
@@ -256,11 +260,13 @@ function OutletTile({
       aria-pressed={on}
       aria-busy={busy}
     >
-      <span className="outlet-icon"><PlugZap size={17} /></span>
+      <span className="outlet-icon">{outlet?.preferences?.icon && outlet.preferences.icon !== "plug" ? icons[outlet.preferences.icon] : <PlugZap size={17} />}</span>
       <span className="outlet-name" dir="auto">{label}</span>
-      <span className="outlet-state">{t(locale, on ? "ON" : "OFF")}</span>
+      <span className="outlet-state">{outlet?.preferences?.locked ? "🔒 " : outlet?.preferences?.protected ? "🛡 " : ""}{t(locale, on ? "ON" : "OFF")}</span>
       <span className="outlet-power">{on ? `${Number(outlet?.power_w || 0).toFixed(1)} W` : " "}</span>
     </button>
+    <button type="button" className="outlet-config" onClick={onConfigure} aria-label={`${t(locale, "Settings for")} ${label}`} title={t(locale, "Outlet settings")}><Settings size={15} /></button>
+    </div>
   );
 }
 
@@ -272,6 +278,7 @@ export function StripCard({
   onToggle,
   onSetAll,
   onSettings,
+  onConfigureOutlet,
 }: {
   strip: Strip;
   mappings: Record<string, Mapping>;
@@ -280,6 +287,7 @@ export function StripCard({
   onToggle: (outlet: number, on: boolean) => void;
   onSetAll: (on: boolean) => void;
   onSettings: () => void;
+  onConfigureOutlet: (channel: number) => void;
 }) {
   const locale = useLocale();
   const canControl = strip.online && strip.enabled && strip.state === "active";
@@ -304,7 +312,7 @@ export function StripCard({
       <div className="outlet-grid">
         {[1, 2, 3, 4].map((channel) => {
           const outlet = strip.outlets?.find((item) => Number(item.channel) === channel);
-          const label = mappingName(strip.mac, channel, mappings, devices, locale);
+          const label = outlet?.preferences?.name || strip.outlet_preferences?.[String(channel)]?.name || mappingName(strip.mac, channel, mappings, devices, locale);
           return (
             <OutletTile
               key={channel}
@@ -313,6 +321,7 @@ export function StripCard({
               label={label}
               busy={busyChannels.has(`${strip.mac}:${channel}`)}
               onToggle={() => onToggle(channel, !Boolean(outlet?.relay))}
+              onConfigure={() => onConfigureOutlet(channel)}
             />
           );
         })}

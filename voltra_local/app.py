@@ -12,6 +12,7 @@ from .demo_device import run_demo_device
 from .discovery import DiscoveryResponder
 from .events import EventBus
 from .http_api import start_http
+from .outlet_control import OutletManager
 from .store import ConfigStore
 from .tcp_server import MTTLServer
 from .telemetry import TelemetryStore
@@ -82,6 +83,8 @@ def main() -> None:
         audit=audit,
         on_device_seen=store.record_strip,
     )
+    outlets = OutletManager(store, mttl, audit=audit, event_bus=event_bus)
+    mttl.on_device_ready = outlets.on_device_ready
     mttl.start()
 
     if demo:
@@ -96,10 +99,7 @@ def main() -> None:
     telemetry.start(mttl.list_devices)
 
     def automation_command(mac: str, outlet: int, on: bool, source: str) -> dict:
-        store.require_strip_controllable(mac)
-        result = mttl.get(mac).set_outlet(outlet, on)
-        audit.append("automation", "command_executed", mac=mac, outlet=outlet, on=on, source=source)
-        return result
+        return outlets.command(mac, outlet, on, source=source)
 
     automation = AutomationEngine(
         data_dir / "automation.json",
@@ -108,6 +108,7 @@ def main() -> None:
         audit=audit,
         event_bus=event_bus,
     )
+    outlets.bind_automation(automation)
     automation.start()
 
     http = start_http(
@@ -117,6 +118,7 @@ def main() -> None:
         store=store,
         cors_origin=cors_origin,
         automation=automation,
+        outlet_manager=outlets,
         telemetry=telemetry,
         audit=audit,
         event_bus=event_bus,

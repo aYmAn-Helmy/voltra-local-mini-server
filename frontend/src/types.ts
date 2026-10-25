@@ -6,7 +6,23 @@ export type ViewName =
   | "add"
   | "settings";
 
+export type OutletPreferences = {
+  name: string;
+  icon: "plug" | "gamepad" | "tv" | "pc" | "router" | "lamp" | "fan" | "other";
+  protected: boolean;
+  locked: boolean;
+  notify: boolean;
+  restore_policy: "none" | "off" | "last";
+  last_relay?: boolean | null;
+  auto_off_minutes: number;
+  low_power_enabled: boolean;
+  low_power_threshold_w: number;
+  low_power_duration_s: number;
+  alert_above_w: number;
+};
+
 export type Outlet = {
+  preferences?: OutletPreferences;
   channel: number;
   relay?: boolean | null;
   power_w?: number | null;
@@ -34,6 +50,7 @@ export type Strip = {
   wifi_rssi_dbm?: number | null;
   health?: Health;
   outlets: Outlet[];
+  outlet_preferences?: Record<string, OutletPreferences>;
   mapped_count?: number;
   total_power_w?: number;
   room?: string;
@@ -104,7 +121,7 @@ export type Rule = {
   id: string;
   mac: string;
   outlet?: number | null;
-  condition: "offline" | "weak_wifi" | "low_power" | "voltage_below" | "voltage_above";
+  condition: "offline" | "weak_wifi" | "low_power" | "high_power" | "voltage_below" | "voltage_above";
   threshold?: number | null;
   duration_s?: number;
   cooldown_s?: number;
