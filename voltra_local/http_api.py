@@ -191,10 +191,15 @@ class APIHandler(BaseHTTPRequestHandler):
                 on = body.get("on")
                 if not isinstance(on, bool):
                     return self._json(400, {"error": "JSON field 'on' must be boolean"})
-                return self._json(200, self.app.mttl.get(_decoded(match.group(1))).set_outlet(int(match.group(2)), on))
+                mac = _decoded(match.group(1))
+                self.app.store.require_outlet_action(mac, int(match.group(2)), on, confirmed=body.get("confirmed") is True)
+                return self._json(200, self.app.mttl.get(mac).set_outlet(int(match.group(2)), on))
             match = _ACTION_RE.match(path)
             if match:
-                return self._json(200, self.app.mttl.get(_decoded(match.group(1))).set_outlet(int(match.group(2)), match.group(3) == "on"))
+                mac = _decoded(match.group(1))
+                on = match.group(3) == "on"
+                self.app.store.require_outlet_action(mac, int(match.group(2)), on)
+                return self._json(200, self.app.mttl.get(mac).set_outlet(int(match.group(2)), on))
 
             if path == "/voltra/api/schedules":
                 if not self.app.automation:
@@ -777,6 +782,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
             raise KeyError(f"PS4 device {device_id} has no power mapping")
         self.store.require_strip_controllable(mapping["mac"])
         session = self.mttl.get(mapping["mac"])
+        self.store.require_outlet_action(str(mapping["mac"]), int(mapping["outlet"]), on)
         snapshot = session.set_outlet(int(mapping["outlet"]), on)
         return {
             "ok": True,
