@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'app_controller.dart';
+import 'outlet_settings.dart';
 import 'security_controller.dart';
 import 'security_ui.dart';
 import 'voltra_api.dart';
@@ -932,6 +933,33 @@ class StripCard extends StatelessWidget {
     return null;
   }
 
+  Future<void> _renameStrip(BuildContext context) async {
+    final input = TextEditingController(text: strip['name']?.toString() ?? '');
+    try {
+      final name = await showDialog<String>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('تغيير اسم المشترك / Rename strip'),
+          content: TextField(controller: input, autofocus: true,
+            textDirection: TextDirection.rtl, textAlign: TextAlign.right,
+            maxLength: 80,
+            decoration: const InputDecoration(labelText: 'اسم المشترك')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, input.text.trim()), child: const Text('Save / حفظ')),
+          ],
+        ),
+      );
+      if (name != null && name.isNotEmpty) {
+        await controller.renameStrip(strip['mac']?.toString() ?? '', name);
+      }
+    } catch (e) {
+      if (context.mounted) _snack(context, e.toString(), error: true);
+    } finally {
+      input.dispose();
+    }
+  }
+
   Future<void> _toggle(
     BuildContext context,
     int channel,
@@ -1003,6 +1031,8 @@ class StripCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     strip['name']?.toString() ?? strip['mac']?.toString() ?? '',
+                    textDirection: RegExp(r'[\u0600-\u06FF]').hasMatch(strip['name']?.toString() ?? '') ? TextDirection.rtl : TextDirection.ltr,
+                    textAlign: RegExp(r'[\u0600-\u06FF]').hasMatch(strip['name']?.toString() ?? '') ? TextAlign.right : TextAlign.start,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
@@ -1010,6 +1040,11 @@ class StripCard extends StatelessWidget {
                       fontSize: 18,
                     ),
                   ),
+                ),
+                IconButton(
+                  tooltip: 'تغيير اسم المشترك / Rename strip',
+                  icon: const Icon(Icons.edit_rounded, size: 18),
+                  onPressed: () => _renameStrip(context),
                 ),
                 _StatusPill(text: status, active: online),
               ],
@@ -1049,6 +1084,7 @@ class StripCard extends StatelessWidget {
                   _OutletTile(
                     channel: channel,
                     data: outlet(channel),
+                    onSettings: () => openOutletSettings(context, controller, strip, channel, outlet(channel)),
                     enabled: online && enabled,
                     busy: controller.outletBusy(strip["mac"]?.toString() ?? "", channel),
                     onToggle: (value) => _toggle(context, channel, value),
@@ -1098,12 +1134,14 @@ class _OutletTile extends StatelessWidget {
   final bool enabled;
   final bool busy;
   final ValueChanged<bool> onToggle;
+  final VoidCallback onSettings;
   const _OutletTile({
     required this.channel,
     required this.data,
     required this.enabled,
     required this.busy,
     required this.onToggle,
+    required this.onSettings,
   });
 
   @override
@@ -1120,6 +1158,7 @@ class _OutletTile extends StatelessWidget {
         ),
       ),
       child: InkWell(
+        onLongPress: onSettings,
         onTap: enabled && !busy ? () => onToggle(!on) : null,
         borderRadius: BorderRadius.circular(15),
         child: Padding(
