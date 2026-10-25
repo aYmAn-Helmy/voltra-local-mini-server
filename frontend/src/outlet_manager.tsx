@@ -64,8 +64,9 @@ export function OutletManagerDialog({
 
   if (!selection || !strip) return null;
 
-  const update = <K extends keyof OutletPreferences>(key: K, value: OutletPreferences[K]) =>
+  function update<K extends keyof OutletPreferences>(key: K, value: OutletPreferences[K]) {
     setDraft((old) => ({ ...old, [key]: value }));
+  }
   async function action(label: string, callback: () => Promise<unknown>) {
     if (busy) return;
     setBusy(true);
@@ -90,7 +91,9 @@ export function OutletManagerDialog({
       <>
         <button className="button secondary" onClick={onClose}>{t(locale, "Close")}</button>
         <button className="button primary" disabled={busy} onClick={() => void action("Saved", async () => {
-          await api.saveOutletPreferences(mac, channel, draft);
+          const changes: Partial<OutletPreferences> = { ...draft };
+          delete changes.last_relay;
+          await api.saveOutletPreferences(mac, channel, changes);
           const fresh = await api.outletPreferences(mac, channel);
           setDraft(fresh);
         })}>{busy ? "…" : t(locale, "Save changes")}</button>
