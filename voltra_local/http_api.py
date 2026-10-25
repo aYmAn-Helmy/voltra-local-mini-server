@@ -815,6 +815,7 @@ def start_http(
     cors_origin: str = "*",
     *,
     automation=None,
+    outlet_manager=None,
     telemetry=None,
     audit=None,
     event_bus=None,
