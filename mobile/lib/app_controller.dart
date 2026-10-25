@@ -369,9 +369,10 @@ class AppController extends ChangeNotifier {
         final matching = strips.where((x) => x['mac'] == mac).toList();
         if (matching.isEmpty) continue;
         final prefs = matching.first['outlet_preferences'];
-        if (prefs is Map && (prefs['$channel'] as Map?)?['notify'] == false) continue;
-        final name = ((prefs is Map ? (prefs['$channel'] as Map?)?['name'] : null) ??
-            'المخرج $channel').toString();
+        final configured = prefs is Map ? prefs['$channel'] : null;
+        if (configured is Map && configured['notify'] == false) continue;
+        final name = configured is Map && configured['name']?.toString().isNotEmpty == true
+            ? configured['name'].toString() : 'المخرج $channel';
         lastAlert = action == 'power_on'
             ? 'تم تشغيل $name'
             : action == 'power_off'
