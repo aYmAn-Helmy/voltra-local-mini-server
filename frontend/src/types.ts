@@ -6,7 +6,10 @@ export type ViewName =
   | "add"
   | "settings";
 
+export type OutletPreferences = { name?: string; icon?: string; protected?: boolean; locked?: boolean; notifications?: boolean; restore_policy?: "device" };
+
 export type Outlet = {
+  preferences?: OutletPreferences;
   channel: number;
   relay?: boolean | null;
   power_w?: number | null;
