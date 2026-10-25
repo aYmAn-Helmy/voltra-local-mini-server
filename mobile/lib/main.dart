@@ -526,6 +526,62 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int index = 0;
+  int _seenAlert = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _seenAlert = widget.controller.alertSerial;
+    widget.controller.addListener(_onAlerts);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onAlerts);
+    super.dispose();
+  }
+
+  void _onAlerts() {
+    if (widget.controller.alertSerial <= _seenAlert) return;
+    _seenAlert = widget.controller.alertSerial;
+    final message = widget.controller.lastAlert;
+    if (message == null || !mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(message, textDirection: TextDirection.rtl),
+        backgroundColor: const Color(0xFF174A35),
+      ));
+    });
+  }
+
+  void _showNotifications() {
+    void open() => showModalBottomSheet<void>(
+      context: context, useSafeArea: true, isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F1726),
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.sizeOf(ctx).height * 0.75,
+        child: Directionality(textDirection: TextDirection.rtl,
+          child: Column(children: [
+            ListTile(title: const Text('سجل الإشعارات والأحداث', style: TextStyle(fontWeight: FontWeight.bold)),
+              trailing: IconButton(icon: const Icon(Icons.refresh), onPressed: () async {
+                await widget.controller.refreshActivity();
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) _showNotifications();
+              })),
+            Expanded(child: ListView(
+              children: widget.controller.activityFeed.map((event) => ListTile(
+                leading: const Icon(Icons.notifications_active_outlined, color: Color(0xFF39E27D)),
+                title: Text(event['action']?.toString().replaceAll('_', ' ') ?? ''),
+                subtitle: Text('${event['at'] ?? ''}', textDirection: TextDirection.ltr),
+              )).toList(),
+            )),
+          ]),
+        )),
+      ),
+    );
+    open();
+  }
 
   String get title => switch (index) {
         0 => 'My strips',
@@ -581,6 +637,11 @@ class _MainShellState extends State<MainShell> {
         ),
         toolbarHeight: 78,
         actions: [
+          IconButton(
+            tooltip: 'الإشعارات',
+            onPressed: _showNotifications,
+            icon: const Icon(Icons.notifications_outlined),
+          ),
           IconButton(
             tooltip: 'Refresh',
             onPressed:
