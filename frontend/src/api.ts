@@ -205,7 +205,7 @@ export const api = {
 };
 
 export function subscribeEvents(
-  onEvent: () => void,
+  onEvent: (event?: { type?: string; action?: string; mac?: string; outlet?: number; on?: boolean }) => void,
   onUnauthorized?: () => void,
 ): () => void {
   const controller = new AbortController();
@@ -243,8 +243,13 @@ export function subscribeEvents(
           while (splitAt >= 0) {
             const packet = buffer.slice(0, splitAt);
             buffer = buffer.slice(splitAt + 2);
-            if (packet.split("\n").some((line) => line.startsWith("data:"))) {
-              onEvent();
+            const line = packet.split("\n").find((item) => item.startsWith("data:"));
+            if (line) {
+              try {
+                onEvent(JSON.parse(line.slice(5).trim()));
+              } catch {
+                onEvent();
+              }
             }
             splitAt = buffer.indexOf("\n\n");
           }
