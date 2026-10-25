@@ -312,6 +312,45 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  Future<void> renameStrip(String mac, String name) async {
+    final client = api;
+    if (client == null) throw const VoltraException('Server is not connected.');
+    await client.renameStrip(mac, name);
+    await refresh(silent: true);
+  }
+
+  Future<void> saveOutlet(String mac, int channel, Map<String, dynamic> value) async {
+    final client = api;
+    if (client == null) throw const VoltraException('Server is not connected.');
+    await client.setOutletPreferences(mac, channel, value);
+    await refresh(silent: true);
+  }
+
+  Future<void> outletCountdown(String mac, int channel, int minutes) async {
+    final client = api;
+    if (client == null) throw const VoltraException('Server is not connected.');
+    await client.createCountdown({'mac': mac, 'outlet': channel, 'on': false,
+      'delay_seconds': minutes * 60, 'offline_policy': 'skip'});
+    await refresh(silent: true);
+  }
+
+  Future<void> outletSchedule(String mac, int channel, bool on, String time, List<int> days) async {
+    final client = api;
+    if (client == null) throw const VoltraException('Server is not connected.');
+    await client.createSchedule({'mac': mac, 'outlet': channel, 'on': on,
+      'time': time, 'days': days, 'offline_policy': 'skip'});
+    await refresh(silent: true);
+  }
+
+  Future<void> outletLowPower(String mac, int channel, double threshold, int duration) async {
+    final client = api;
+    if (client == null) throw const VoltraException('Server is not connected.');
+    await client.createRule({'mac': mac, 'outlet': channel, 'condition': 'low_power',
+      'threshold': threshold, 'duration_s': duration, 'cooldown_s': 3600,
+      'action': {'type': 'set_outlet', 'outlet': channel, 'on': false}});
+    await refresh(silent: true);
+  }
+
   Future<void> adopt(String mac, String name) async {
     await api?.adoptStrip(mac, name);
     await refresh(silent: true);
