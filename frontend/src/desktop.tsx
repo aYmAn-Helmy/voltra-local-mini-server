@@ -142,6 +142,7 @@ type DashboardProps = {
   onToggleOutlet: (strip: Strip, outlet: number, on: boolean) => void;
   onSetAll: (strip: Strip, on: boolean) => void;
   onStripSettings: (strip: Strip) => void;
+  onConfigureOutlet: (strip: Strip, channel: number) => void;
 };
 
 type DeviceFilter = "all" | "online" | "offline";
@@ -156,6 +157,7 @@ export function DesktopDashboard({
   onToggleOutlet,
   onSetAll,
   onStripSettings,
+  onConfigureOutlet,
 }: DashboardProps) {
   const locale = useLocale();
   const [filter, setFilter] = useState<DeviceFilter>("all");
@@ -300,6 +302,7 @@ export function DesktopDashboard({
               onToggle={(outlet, on) => onToggleOutlet(strip, outlet, on)}
               onSetAll={(on) => onSetAll(strip, on)}
               onSettings={() => onStripSettings(strip)}
+              onConfigureOutlet={(channel) => onConfigureOutlet(strip, channel)}
             />
           ))}
           {matches.length === 0 && (
