@@ -556,7 +556,7 @@ class _MainShellState extends State<MainShell> {
   }
 
   void _showNotifications() {
-    void open() => showModalBottomSheet<void>(
+    showModalBottomSheet<void>(
       context: context, useSafeArea: true, isScrollControlled: true,
       backgroundColor: const Color(0xFF0F1726),
       builder: (ctx) => SizedBox(
@@ -580,7 +580,6 @@ class _MainShellState extends State<MainShell> {
         )),
       ),
     );
-    open();
   }
 
   String get title => switch (index) {
