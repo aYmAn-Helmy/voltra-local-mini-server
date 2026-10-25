@@ -1012,7 +1012,7 @@ class StripCard extends StatelessWidget {
 
   Future<void> _renameStrip(BuildContext context) async {
     final edit = TextEditingController(text: strip["name"]?.toString() ?? "");
-    var rtl = RegExp(r'[\\u0600-\\u06FF]').hasMatch(edit.text);
+    var rtl = RegExp(r'[\u0600-\u06FF]').hasMatch(edit.text);
     try {
       await showDialog<void>(context: context, builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, change) => AlertDialog(
@@ -1022,7 +1022,7 @@ class StripCard extends StatelessWidget {
             textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
             textAlign: rtl ? TextAlign.right : TextAlign.left,
             decoration: const InputDecoration(labelText: "اسم المشترك بالعربي أو الإنجليزي"),
-            onChanged: (value) => change(() => rtl = RegExp(r'[\\u0600-\\u06FF]').hasMatch(value)),
+            onChanged: (value) => change(() => rtl = RegExp(r'[\u0600-\u06FF]').hasMatch(value)),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text("إلغاء")),
