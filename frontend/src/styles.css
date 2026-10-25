@@ -602,3 +602,13 @@ select { appearance: auto; }
 .app-shell[dir="rtl"] .title-row .icon-button svg { transform: scaleX(-1); }
 .app-shell[dir="rtl"] .strip-menu { margin-left: 0; margin-right: auto; }
 .app-shell[dir="rtl"] .diagnostic-row { direction: ltr; justify-content: flex-end; }
+
+.outlet-config-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin:10px 0; }
+.outlet-config-actions .button { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.outlet-editor { max-height:90vh; overflow:hidden; }
+.outlet-editor-scroll { max-height:68vh; overflow-y:auto; display:grid; gap:10px; padding:12px 2px; }
+.outlet-editor-scroll label { display:grid; gap:4px; }
+.outlet-editor-scroll input:not([type=checkbox]), .outlet-editor-scroll select { padding:8px; border:1px solid #42506a; border-radius:8px; background:#141d30; color:white; }
+.outlet-editor-scroll label:has(input[type=checkbox]) { display:flex; align-items:center; gap:8px; }
+.outlet-weekdays { display:flex; gap:8px; flex-wrap:wrap; }
+.outlet-weekdays label { display:flex; gap:4px; align-items:center; }
