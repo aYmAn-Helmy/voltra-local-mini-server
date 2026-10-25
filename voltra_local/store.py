@@ -440,6 +440,63 @@ class ConfigStore:
             self._save_locked()
             return dict(current)
 
+    def outlet_preferences(self, mac: str) -> dict:
+        """Persistent user-facing outlet metadata; separate from physical relay data."""
+        mac = self.normalize_mac(mac)
+        with self._lock:
+            meta = self._data["strips"].get(mac)
+            if not isinstance(meta, dict):
+                raise KeyError(f"unknown strip: {mac}")
+            prefs = meta.get("outlet_preferences") or {}
+            return {str(channel): dict(prefs.get(str(channel)) or {}) for channel in (1, 2, 3, 4)}
+
+    def set_outlet_preferences(self, mac: str, outlet: int, value: dict) -> dict:
+        mac = self.normalize_mac(mac)
+        if outlet not in (1, 2, 3, 4):
+            raise ValueError("outlet must be 1..4")
+        if not isinstance(value, dict):
+            raise ValueError("outlet preferences must be an object")
+        allowed = {"name", "icon", "protected", "locked", "notifications", "restore_policy"}
+        if not set(value).issubset(allowed):
+            raise ValueError("unknown outlet preference")
+        with self._lock:
+            meta = self._data["strips"].get(mac)
+            if not isinstance(meta, dict):
+                raise KeyError(f"unknown strip: {mac}")
+            all_prefs = meta.setdefault("outlet_preferences", {})
+            old = dict(all_prefs.get(str(outlet)) or {})
+            if "name" in value:
+                name = str(value["name"]).strip()
+                if len(name) > 80 or any(ord(c) < 32 for c in name):
+                    raise ValueError("invalid outlet name")
+                old["name"] = name
+            if "icon" in value:
+                icon = str(value["icon"])
+                if icon not in {"plug", "tv", "gamepad", "router", "computer", "light", "fan", "other"}:
+                    raise ValueError("unsupported outlet icon")
+                old["icon"] = icon
+            for key in ("protected", "locked", "notifications"):
+                if key in value:
+                    if not isinstance(value[key], bool):
+                        raise ValueError(f"{key} must be boolean")
+                    old[key] = value[key]
+            if "restore_policy" in value:
+                if value["restore_policy"] not in ("device",):
+                    raise ValueError("restore policy is firmware-controlled; only device default is supported")
+                old["restore_policy"] = "device"
+            all_prefs[str(outlet)] = old
+            meta["updated_at"] = utc_now()
+            self._save_locked()
+            return dict(old)
+
+    def require_outlet_action(self, mac: str, outlet: int, on: bool, *, confirmed: bool = False, automated: bool = False) -> None:
+        self.require_strip_controllable(mac)
+        prefs = self.outlet_preferences(mac).get(str(outlet), {})
+        if prefs.get("locked"):
+            raise PermissionError("outlet is locked; unlock in outlet settings first")
+        if not on and prefs.get("protected") and (automated or not confirmed):
+            raise PermissionError("protected outlet requires manual confirmation to turn off")
+
     def scenes(self) -> list[dict]:
         with self._lock:
             values = [dict(item) for item in self._data["scenes"].values()]
