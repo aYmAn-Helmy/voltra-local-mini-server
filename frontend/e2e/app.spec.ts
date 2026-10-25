@@ -111,9 +111,9 @@ test("outlet editor saves Arabic names through the real local API", async ({ pag
   const field = page.getByLabel("Outlet name");
   await field.fill("بلايستيشن ٥");
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByRole("button", { name: "Close", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Close", exact: true }).click();
-  await expect(page.getByText("بلايستيشن ٥")).toBeVisible();
+  await expect(page.locator(".modal-footer").getByRole("button", { name: "Close" })).toBeVisible();
+  await page.locator(".modal-footer").getByRole("button", { name: "Close" }).click();
+  await expect(page.locator(".outlet-name").filter({ hasText: "بلايستيشن ٥" })).toBeVisible();
   await page.reload();
-  await expect(page.getByText("بلايستيشن ٥")).toBeVisible();
+  await expect(page.locator(".outlet-name").filter({ hasText: "بلايستيشن ٥" })).toBeVisible();
 });
