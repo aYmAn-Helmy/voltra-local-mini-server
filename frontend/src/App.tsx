@@ -136,7 +136,11 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = subscribeEvents(
-      () => {
+      (event) => {
+        if (event?.type === "outlet_activity") {
+          const change = event.action === "power_on" ? "ON" : event.action === "power_off" ? "OFF" : event.action;
+          notify(`Outlet ${event.outlet ?? "?"} · ${change ?? "updated"}`);
+        }
         if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
         refreshTimer.current = window.setTimeout(() => {
           refreshAll();
@@ -150,7 +154,7 @@ export default function App() {
       window.clearInterval(fallback);
       if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
     };
-  }, [refreshAll, refreshOverview]);
+  }, [refreshAll, refreshOverview, notify]);
 
   useEffect(() => {
     if (!editingStrip) return;
