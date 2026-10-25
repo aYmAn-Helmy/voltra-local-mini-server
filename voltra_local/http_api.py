@@ -30,6 +30,8 @@ _ACTION_RE = re.compile(r"^/api/devices/([^/]+)/outlets/([1-4])/(on|off)$")
 # Namespaced API for embedding into the PlayStation management project.
 _V_STRIP_RE = re.compile(r"^/voltra/api/strips/([^/]+)$")
 _V_STRIP_STATE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/state$")
+_V_OUTLET_PREF_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/preferences$")
+_V_OUTLET_ACTIVITY_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/activity$")
 _V_STRIP_ADOPT_RE = re.compile(r"^/voltra/api/strips/([^/]+)/adopt$")
 _V_STRIP_ENABLED_RE = re.compile(r"^/voltra/api/strips/([^/]+)/enabled$")
 _V_STRIP_IGNORE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/ignore$")
@@ -97,6 +99,14 @@ class APIHandler(BaseHTTPRequestHandler):
             if match:
                 return self._json(200, self.app.mttl.get(_decoded(match.group(1))).snapshot())
 
+            match = _V_OUTLET_PREF_RE.match(path)
+            if match:
+                return self._json(200, self.app.store.outlet_preferences(_decoded(match.group(1)), int(match.group(2))))
+            match = _V_OUTLET_ACTIVITY_RE.match(path)
+            if match:
+                if not self.app.outlet_manager:
+                    return self._json(503, {"error": "outlet manager disabled"})
+                return self._json(200, {"events": self.app.outlet_manager.activity(_decoded(match.group(1)), int(match.group(2)))})
             if path == "/voltra/api/overview":
                 return self._json(200, self.app.overview())
             if path == "/voltra/api/automation":
@@ -276,8 +286,13 @@ class APIHandler(BaseHTTPRequestHandler):
                 if not isinstance(on, bool):
                     return self._json(400, {"error": "JSON field 'on' must be boolean"})
                 mac = _decoded(match.group(1))
-                self.app.store.require_strip_controllable(mac)
-                return self._json(200, self.app.mttl.get(mac).set_outlet(int(match.group(2)), on))
+                outlet = int(match.group(2))
+                if self.app.outlet_manager:
+                    result = self.app.outlet_manager.command(mac, outlet, on, confirmed=body.get("confirm_protected") is True)
+                else:
+                    self.app.store.require_strip_controllable(mac)
+                    result = self.app.mttl.get(mac).set_outlet(outlet, on)
+                return self._json(200, result)
             match = _V_POWER_ACTION_RE.match(path)
             if match:
                 return self._json(200, self.app.set_ps4_power(_decoded(match.group(1)), match.group(2) == "on"))
@@ -292,7 +307,7 @@ class APIHandler(BaseHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError) as exc:
             return self._json(400, {"error": str(exc)})
         except PermissionError as exc:
-            return self._json(401, {"error": str(exc)})
+            return self._json(403, {"error": str(exc)})
         except Exception as exc:
             return self._json(500, {"error": str(exc)})
 
@@ -307,6 +322,12 @@ class APIHandler(BaseHTTPRequestHandler):
             self.app.audit_request("PUT", path, client_ip)
             body = self._read_json()
 
+            match = _V_OUTLET_PREF_RE.match(path)
+            if match:
+                if not self.app.outlet_manager:
+                    return self._json(503, {"error": "outlet manager disabled"})
+                return self._json(200, self.app.outlet_manager.preferences(
+                    _decoded(match.group(1)), int(match.group(2)), body))
             match = _V_STRIP_PREFS_RE.match(path)
             if match:
                 mac = _decoded(match.group(1))
@@ -546,6 +567,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
         cors_origin: str = "*",
         *,
         automation=None,
+        outlet_manager=None,
         telemetry=None,
         audit=None,
         event_bus=None,
@@ -558,6 +580,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
         self.store = store
         self.cors_origin = cors_origin
         self.automation = automation
+        self.outlet_manager = outlet_manager
         self.telemetry = telemetry
         self.audit = audit
         self.event_bus = event_bus
@@ -655,7 +678,10 @@ class VoltraHTTPServer(ThreadingHTTPServer):
                 "last_event": (current or {}).get("last_event"),
                 "health": health,
                 "metrics": (current or {}).get("metrics") or {},
-                "outlets": outlets,
+                "outlets": [
+                    {**row, "preferences": self.store.outlet_preferences(mac, int(row["channel"]))}
+                    for row in outlets
+                ],
                 "mapped_devices": mapped_devices,
                 "mapped_count": len(mapped_devices),
                 "total_power_w": round(sum(float(x.get("power_w") or 0) for x in outlets), 2),
@@ -710,7 +736,8 @@ class VoltraHTTPServer(ThreadingHTTPServer):
             on = bool(action.get("on"))
             try:
                 self.store.require_strip_controllable(mac)
-                snapshot = self.mttl.get(mac).set_outlet(outlet, on)
+                snapshot = (self.outlet_manager.command(mac, outlet, on, source="scene")
+                            if self.outlet_manager else self.mttl.get(mac).set_outlet(outlet, on))
                 results.append({"mac": mac, "outlet": outlet, "on": on, "ok": True, "device": snapshot})
             except Exception as exc:
                 results.append({"mac": mac, "outlet": outlet, "on": on, "ok": False, "error": str(exc)})
@@ -761,7 +788,8 @@ class VoltraHTTPServer(ThreadingHTTPServer):
             raise KeyError(f"PS4 device {device_id} has no power mapping")
         self.store.require_strip_controllable(mapping["mac"])
         session = self.mttl.get(mapping["mac"])
-        snapshot = session.set_outlet(int(mapping["outlet"]), on)
+        snapshot = (self.outlet_manager.command(mapping["mac"], int(mapping["outlet"]), on, source="ps4")
+                    if self.outlet_manager else session.set_outlet(int(mapping["outlet"]), on))
         return {
             "ok": True,
             "ps4_id": device_id,
@@ -794,6 +822,7 @@ def start_http(
         store=store,
         cors_origin=cors_origin,
         automation=automation,
+        outlet_manager=outlet_manager,
         telemetry=telemetry,
         audit=audit,
         event_bus=event_bus,
