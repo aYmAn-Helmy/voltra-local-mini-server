@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { OutletEditor } from "./outlet-editor";
 import {
   Activity,
   BarChart3,
@@ -246,7 +247,7 @@ function OutletTile({
 }) {
   const locale = useLocale();
   const on = Boolean(outlet?.relay);
-  const canControl = strip.online && strip.enabled && strip.state === "active" && !busy;
+  const canControl = strip.online && strip.enabled && strip.state === "active" && !busy && !outlet?.preferences?.locked;
   return (
     <button
       className={`outlet-tile ${on ? "on" : ""}`}
@@ -272,6 +273,7 @@ export function StripCard({
   onToggle,
   onSetAll,
   onSettings,
+  onRefresh,
 }: {
   strip: Strip;
   mappings: Record<string, Mapping>;
@@ -280,7 +282,9 @@ export function StripCard({
   onToggle: (outlet: number, on: boolean) => void;
   onSetAll: (on: boolean) => void;
   onSettings: () => void;
+  onRefresh: () => Promise<void>;
 }) {
+  const [selected, setSelected] = useState<Outlet | null>(null);
   const locale = useLocale();
   const canControl = strip.online && strip.enabled && strip.state === "active";
   const status = strip.state === "disabled" ? "DISABLED" : strip.online ? "ONLINE" : "OFFLINE";
@@ -304,7 +308,7 @@ export function StripCard({
       <div className="outlet-grid">
         {[1, 2, 3, 4].map((channel) => {
           const outlet = strip.outlets?.find((item) => Number(item.channel) === channel);
-          const label = mappingName(strip.mac, channel, mappings, devices, locale);
+          const label = outlet?.preferences?.name || mappingName(strip.mac, channel, mappings, devices, locale);
           return (
             <OutletTile
               key={channel}
@@ -317,6 +321,11 @@ export function StripCard({
           );
         })}
       </div>
+      <div className="outlet-config-actions">{[1, 2, 3, 4].map(channel => {
+        const outlet = strip.outlets?.find(item => Number(item.channel) === channel);
+        return <button type="button" className="button secondary" key={channel} onClick={() => setSelected(outlet || { channel })} aria-label={`Settings for outlet ${channel}`}>⚙ {outlet?.preferences?.name || `${t(locale, "Outlet")} ${channel}`}</button>;
+      })}</div>
+      {selected && <OutletEditor strip={strip} outlet={selected} onClose={() => setSelected(null)} onSaved={onRefresh} />}
 
       <div className="bulk-grid">
         <button className="button soft-green" disabled={!canControl} onClick={() => onSetAll(true)}>
