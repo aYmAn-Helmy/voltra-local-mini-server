@@ -30,6 +30,7 @@ _ACTION_RE = re.compile(r"^/api/devices/([^/]+)/outlets/([1-4])/(on|off)$")
 # Namespaced API for embedding into the PlayStation management project.
 _V_STRIP_RE = re.compile(r"^/voltra/api/strips/([^/]+)$")
 _V_STRIP_STATE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/state$")
+_V_STRIP_TIMER_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/timer$")
 _V_STRIP_ADOPT_RE = re.compile(r"^/voltra/api/strips/([^/]+)/adopt$")
 _V_STRIP_ENABLED_RE = re.compile(r"^/voltra/api/strips/([^/]+)/enabled$")
 _V_STRIP_IGNORE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/ignore$")
@@ -278,6 +279,18 @@ class APIHandler(BaseHTTPRequestHandler):
                 mac = _decoded(match.group(1))
                 self.app.store.require_strip_controllable(mac)
                 return self._json(200, self.app.mttl.get(mac).set_outlet(int(match.group(2)), on))
+            match = _V_STRIP_TIMER_RE.match(path)
+            if match:
+                body = self._read_json()
+                minutes = body.get("minutes")
+                if type(minutes) is not int or not 0 <= minutes <= 1440:
+                    return self._json(400, {"error": "minutes must be an integer 0..1440"})
+                mac = _decoded(match.group(1))
+                self.app.store.require_strip_controllable(mac)
+                device = self.app.mttl.get(mac)
+                if not hasattr(device, "set_timer"):
+                    return self._json(400, {"error": "on-device timers require standalone firmware"})
+                return self._json(200, device.set_timer(int(match.group(2)), minutes))
             match = _V_POWER_ACTION_RE.match(path)
             if match:
                 return self._json(200, self.app.set_ps4_power(_decoded(match.group(1)), match.group(2) == "on"))
@@ -644,6 +657,7 @@ class VoltraHTTPServer(ThreadingHTTPServer):
                 "enabled": enabled,
                 "state": state,
                 "model": (current or {}).get("model") or meta.get("model"),
+                "device_type": (current or {}).get("device_type") or meta.get("device_type") or "original_tcp",
                 "firmware_version": (current or {}).get("firmware_version") or meta.get("firmware_version"),
                 "last_ip": ((current or {}).get("remote_address") or meta.get("last_ip") or "").rsplit(":", 1)[0],
                 "connected_at": (current or {}).get("connected_at"),
@@ -658,7 +672,8 @@ class VoltraHTTPServer(ThreadingHTTPServer):
                 "outlets": outlets,
                 "mapped_devices": mapped_devices,
                 "mapped_count": len(mapped_devices),
-                "total_power_w": round(sum(float(x.get("power_w") or 0) for x in outlets), 2),
+                "total_power_w": round(float((current or {}).get("total_power_w") if (current or {}).get("total_power_w") is not None else sum(float(x.get("power_w") or 0) for x in outlets)), 2),
+                "total_energy_kwh": (current or {}).get("total_energy_kwh"),
                 "room": str(meta.get("room") or ""),
                 "favorite": bool(meta.get("favorite", False)),
                 "sort_order": int(meta.get("sort_order") or 0),
