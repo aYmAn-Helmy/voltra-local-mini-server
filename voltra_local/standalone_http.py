@@ -102,13 +102,19 @@ class HTTPStandaloneSession:
         return self.manager.poll_one(self.mac)
 
     def set_outlet(self, channel, on):
-        return self.manager.control(self.mac, channel, on)
+        return self.manager.control(self.mac, channel - 1, on)
 
     def set_all(self, on):
         return self.manager.control(self.mac, 4, on)
 
     def set_timer(self, channel, minutes):
-        self.manager.patch(self.mac, {"timer_minutes": self.manager._new_timers(self.mac, channel, minutes)})
+        details = self.manager.details(self.mac)
+        timers = list(details["config"]["timer_minutes"])
+        if type(channel) is not int or not 1 <= channel <= 4 or type(minutes) is not int or not 0 <= minutes <= 1440:
+            raise ValueError("invalid timer")
+        timers[channel - 1] = minutes
+        self.manager.patch(self.mac, {"timer_minutes": timers,
+                                       "revision": details["config"]["revision"]})
         return self.snapshot()
 
 
@@ -165,6 +171,10 @@ class HTTPStandalone:
 
     def poll_one(self, mac):
         mac = clean_mac(mac)
+        with self._device_lock(mac):
+            return self._poll_locked(mac)
+
+    def _poll_locked(self, mac):
         ip = self._target(mac)
         try:
             status = self._check(ip, mac)
