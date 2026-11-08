@@ -77,7 +77,7 @@ export const api = {
     }),
   nativeDetails: (mac: string) => request(`${API}/standalone/${encodeURIComponent(mac)}/details`),
   nativeLive: (mac: string) => request(`${API}/standalone/${encodeURIComponent(mac)}/live`),
-  nativeLogs: (mac: string) => request(`${API}/standalone/${encodeURIComponent(mac)}/logs`),
+  nativeLogs: (mac: string) => request<{ events: Record<string, unknown>[] }>(`${API}/standalone/${encodeURIComponent(mac)}/logs`),
   nativeConfig: (mac: string, value: Record<string, unknown>) =>
     request(`${API}/standalone/${encodeURIComponent(mac)}/config`, {
       method: "POST", body: JSON.stringify(value),

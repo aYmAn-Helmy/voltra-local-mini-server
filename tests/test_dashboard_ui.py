@@ -13,7 +13,7 @@ FRONTEND = ROOT / "frontend"
 
 class ProfessionalFrontendV021Tests(unittest.TestCase):
     def test_version(self):
-        self.assertEqual(__version__, "0.22.0")
+        self.assertEqual(__version__, "0.23.0")
 
     def test_react_frontend_sources_exist(self):
         for path in (

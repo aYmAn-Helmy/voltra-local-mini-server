@@ -101,7 +101,7 @@ class FirmwareCodecTests(unittest.TestCase):
 
     def test_firmware_config_binary_format_v7(self):
         raw = pack_configuration(config())
-        self.assertEqual(raw[:5], bytes([7, 1, 0, 59, 7]))
+        self.assertEqual(raw[:5], bytes([7, 1, 0, 91, 7]))
         self.assertEqual(len(raw) < 1024, True)
         self.assertEqual(raw[-59:-9], bytes.fromhex(config()["schedule_hex"]))
         self.assertEqual(list(struct.unpack("<4H", raw[-8:])), [0, 0, 0, 0])
