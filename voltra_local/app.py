@@ -14,6 +14,7 @@ from .events import EventBus
 from .http_api import start_http
 from .mqtt_adapter import StandaloneMQTT
 from .device_manager import DeviceManager
+from .standalone_http import HTTPStandalone
 from .store import ConfigStore
 from .tcp_server import MTTLServer
 from .telemetry import TelemetryStore
@@ -97,7 +98,9 @@ def main() -> None:
             event_bus=event_bus,
         )
         mqtt_adapter.start()
-    devices = DeviceManager(mttl, mqtt_adapter)
+    standalone = HTTPStandalone(store, event_bus=event_bus, audit=audit)
+    standalone.start()
+    devices = DeviceManager(mttl, mqtt_adapter, standalone)
 
     if demo:
         threading.Thread(
@@ -130,6 +133,7 @@ def main() -> None:
         http_bind,
         http_port,
         store=store,
+        standalone=standalone,
         cors_origin=cors_origin,
         automation=automation,
         telemetry=telemetry,
@@ -159,6 +163,7 @@ def main() -> None:
         automation.stop()
         discovery.stop()
         telemetry.stop()
+        standalone.stop()
         http.shutdown()
         http.server_close()
         if mqtt_adapter:
