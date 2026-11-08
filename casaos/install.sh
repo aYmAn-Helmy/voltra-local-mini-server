@@ -93,6 +93,20 @@ if [ -z "$HOST_IP" ]; then
   echo "No LAN IP found. Cannot safely bind the MQTT listener."
   exit 1
 fi
+# Reject a public IP to avoid accidentally exposing plaintext MQTT on WAN.
+if ! python3 - "$HOST_IP" <<'PY'
+import ipaddress, sys
+try:
+    address = ipaddress.ip_address(sys.argv[1])
+    valid = address.version == 4 and address.is_private and not address.is_loopback
+except ValueError:
+    valid = False
+sys.exit(0 if valid else 1)
+PY
+then
+  echo "MQTT must bind to a private IPv4 LAN address, not $HOST_IP"
+  exit 1
+fi
 if ! grep -q '^VOLTRA_MQTT_DEVICE_PASSWORD=.' "$ENV_FILE"; then
   if [ -f "$MQTT_ROOT/config/passwords" ]; then
     echo "Password database exists but environment credentials are missing. Refusing to rotate credentials."
