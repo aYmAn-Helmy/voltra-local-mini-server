@@ -85,6 +85,7 @@ export function DashboardView({
   onToggleOutlet,
   onSetAll,
   onStripSettings,
+  onOpenNative,
 }: {
   overview: Overview;
   automation: AutomationSnapshot;
@@ -95,6 +96,7 @@ export function DashboardView({
   onToggleOutlet: (strip: Strip, outlet: number, on: boolean) => void;
   onSetAll: (strip: Strip, on: boolean) => void;
   onStripSettings: (strip: Strip) => void;
+  onOpenNative: (strip: Strip) => void;
 }) {
   const strips = activeStrips(overview);
   const normalized = search.trim().toLowerCase();
@@ -163,6 +165,7 @@ export function DashboardView({
             onToggle={(outlet, on) => onToggleOutlet(strip, outlet, on)}
             onSetAll={(on) => onSetAll(strip, on)}
             onSettings={() => onStripSettings(strip)}
+            onOpenNative={() => onOpenNative(strip)}
           />
         ))}
         {!filtered.length && (
@@ -727,6 +730,7 @@ export function AddStripView({
   const [password, setPassword] = useState("");
   const [serverIp, setServerIp] = useState("");
   const [deviceIp, setDeviceIp] = useState("192.168.1.1");
+  const [nativeIp, setNativeIp] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function adopt(strip: Strip) {
@@ -761,7 +765,7 @@ export function AddStripView({
         <div>
           <span className="eyebrow">ONBOARDING</span>
           <h2>Add strip</h2>
-          <p>Voltra discovers original TCP strips on port 10086 and standalone strips via local MQTT. Configure MQTT on the standalone device first.</p>
+          <p>Voltra discovers original TCP strips on port 10086 and supports standalone firmware via MQTT or native HTTP by device IP.</p>
         </div>
         <span className="count-badge">{pending.length}</span>
       </section>
@@ -802,6 +806,25 @@ export function AddStripView({
           <EmptyState icon={Wifi} title="Waiting for a new strip" description="When an MTTL-W01 connects to this server, it will appear here automatically." />
         )}
       </div>
+
+      <section className="surface-card native-form">
+        <div className="card-title-row">
+          <div><span className="eyebrow">STANDALONE 2.1.x</span><h3>Connect by device IP</h3></div>
+          <Wifi size={20}/>
+        </div>
+        <p className="card-copy">Enter the strip's own LAN IP (not the CasaOS IP). Voltra validates its MAC and firmware and enables native HTTP controls. The device will appear in Pending for approval.</p>
+        <label><span>Standalone strip IP</span><input placeholder="192.168.1.60" value={nativeIp} onChange={e => setNativeIp(e.target.value)}/></label>
+        <button className="button primary" disabled={!nativeIp.trim() || busy} onClick={async () => {
+          setBusy(true);
+          try {
+            const result = await api.pairNative(nativeIp);
+            setNativeIp("");
+            await refresh();
+            notify(`Discovered standalone device ${result.mac}. Adopt it above.`);
+          } catch (error) { notify(error instanceof Error ? error.message : String(error), true); }
+          finally { setBusy(false); }
+        }}>Connect native firmware</button>
+      </section>
 
       <section className="surface-card">
         <div className="card-title-row">

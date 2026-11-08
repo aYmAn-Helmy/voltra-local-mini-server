@@ -27,6 +27,7 @@ import type { EnergyPoint, Mapping, Outlet, Ps4Device, Strip, ViewName } from ".
 
 export const viewMeta: Record<ViewName, { title: string; icon: typeof Home }> = {
   dashboard: { title: "My strips", icon: Home },
+  standalone: { title: "Device control", icon: PlugZap },
   energy: { title: "Consumption", icon: BarChart3 },
   automation: { title: "Automation", icon: CalendarClock },
   rooms: { title: "Rooms", icon: MapPin },
@@ -258,6 +259,7 @@ export function StripCard({
   onToggle,
   onSetAll,
   onSettings,
+  onOpenNative,
 }: {
   strip: Strip;
   mappings: Record<string, Mapping>;
@@ -266,6 +268,7 @@ export function StripCard({
   onToggle: (outlet: number, on: boolean) => void;
   onSetAll: (on: boolean) => void;
   onSettings: () => void;
+  onOpenNative?: () => void;
 }) {
   const canControl = strip.online && strip.enabled && strip.state === "active";
   const status = strip.state === "disabled" ? "DISABLED" : strip.online ? "ONLINE" : "OFFLINE";
@@ -273,7 +276,7 @@ export function StripCard({
   const [timerDrafts, setTimerDrafts] = useState<Record<number, number>>({});
   const [timerBusy, setTimerBusy] = useState<number | null>(null);
   const [timerNotice, setTimerNotice] = useState("");
-  const standalone = strip.device_type === "standalone_mqtt";
+  const standalone = strip.device_type === "standalone_mqtt" || strip.device_type === "standalone_http";
   const timerEnabled = canControl && timerBusy === null;
   async function saveLocalTimer(channel: number) {
     const live = strip.outlets.find((item) => item.channel === channel);
@@ -305,14 +308,14 @@ export function StripCard({
       </div>
 
       <div className="strip-meta">
-        <span>{strip.room || "Local strip"} · {standalone ? "Standalone MQTT" : "Original TCP"} · {health}</span>
+        <span>{strip.room || "Local strip"} · {strip.device_type === "standalone_http" ? "Native HTTP" : standalone ? "Standalone MQTT" : "Original TCP"} · {health}</span>
         <strong>{Number(strip.total_power_w || 0).toFixed(1)} W</strong>
       </div>
 
       <div className="outlet-grid">
         {[1, 2, 3, 4].map((channel) => {
           const outlet = strip.outlets?.find((item) => Number(item.channel) === channel);
-          const label = mappingName(strip.mac, channel, mappings, devices);
+          const label = (strip.device_type === "standalone_http" ? outlet?.name : null) || mappingName(strip.mac, channel, mappings, devices);
           return (
             <OutletTile
               key={channel}
@@ -335,7 +338,12 @@ export function StripCard({
         </button>
       </div>
 
-      {standalone && (
+      {strip.device_type === "standalone_http" && onOpenNative && (
+        <button className="button native-open" onClick={onOpenNative}>
+          <PlugZap size={17} /> Open native controls, schedules & settings
+        </button>
+      )}
+      {strip.device_type === "standalone_mqtt" && (
         <section className="local-timers" aria-label="On-device auto-off timers">
           <strong>Local auto-off timers <small>(saved on the strip, 0 disables)</small></strong>
           <div className="local-timer-grid">
