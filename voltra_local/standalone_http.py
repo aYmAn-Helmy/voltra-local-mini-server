@@ -229,6 +229,12 @@ class HTTPStandalone:
                                     "config": config, "at": time.monotonic()}
             if self.event_bus and (not previous or previous.get("outlets") != outlets):
                 self.event_bus.publish("device_state", mac=mac)
+            if self.audit and previous:
+                before = tuple(x.get("relay") for x in previous.get("outlets", []))
+                after = tuple(x.get("relay") for x in outlets)
+                if before != after:
+                    self.audit.append("standalone", "relay_state_changed", mac=mac,
+                                      before=before, after=after)
             return snapshot
         except (FirmwareHTTPError, ValueError, KeyError):
             with self._lock:
@@ -285,6 +291,7 @@ class HTTPStandalone:
         return self.http(ip, path, method, body, extra_headers, timeout)
 
     def control(self, mac, channel, on):
+        self.store.require_strip_controllable(mac)
         if type(channel) is not int or not 0 <= channel <= 4 or type(on) is not bool:
             raise ValueError("invalid native relay command")
         ip = self._target(mac)
