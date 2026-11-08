@@ -248,11 +248,13 @@ class NativeHTTPAPITests(unittest.TestCase):
         })
         self.assertEqual(code, 200, saved)
         self.assertEqual(saved["schedule"]["rules"][0]["minute"], 1140)
+        from unittest.mock import Mock
+        self.server.automation = Mock()
         code, _ = self.call("/voltra/api/schedules", {
             "mac": MAC, "outlet": 1, "on": True,
             "time": "19:00", "days": [0, 1, 2, 3, 4, 5, 6]
         })
-        self.assertEqual(code, 503 if self.server.automation is None else 400)
+        self.assertEqual(code, 400)
 
     def test_api_relay_uses_firmware_channel_index(self):
         address = "/voltra/api/standalone"
