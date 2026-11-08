@@ -593,3 +593,50 @@ select { appearance: auto; }
   .fab { bottom: 26px; right: max(24px, calc((100vw - 980px) / 2 + 24px)); }
   .toast { bottom: 26px; }
 }
+
+
+/* Device-native firmware console */
+.native-console { padding-bottom: 28px; }
+.native-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.native-toolbar h2 { margin: 3px 0; color: var(--text); font-size: 22px; }
+.native-toolbar small { color: var(--muted); font-size: 11px; }
+.native-tabs { display: flex; flex-wrap: nowrap; gap: 5px; padding: 6px; overflow-x: auto;
+  border: 1px solid var(--line); background: #131d2e; border-radius: 15px; }
+.native-tabs button { flex: 0 0 auto; border: 0; background: transparent; color: #98a3b7;
+  border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.native-tabs button.active { background: var(--green); color: #071827; font-weight: 900; }
+.native-form { display: grid; gap: 12px; }
+.native-form h3 { margin: 5px 0; font-size: 14px; }
+.native-form label { display: grid; gap: 6px; color: #9facbf; font-size: 11px; }
+.native-form input:not([type="checkbox"]), .native-form select, .native-form input[type="file"] {
+  border: 1px solid #354056; border-radius: 10px; padding: 11px; background: #0b1423; color: #e0e8f5;
+  min-width: 0; width: 100%; font: inherit; font-size: 12px; }
+.native-form label.native-checkbox { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.native-checkbox input { width: 17px; height: 17px; accent-color: var(--green); }
+.native-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.native-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 10px 0; }
+.native-metrics > div { border: 1px solid #283951; border-radius: 12px; background: #0d1b2b; padding: 12px; display: grid; gap: 5px; }
+.native-metrics small { color: #8597ad; font-size: 10px; }
+.native-metrics strong { font-size: 15px; color: #53e89f; white-space: nowrap; }
+.native-power-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin: 15px 0; }
+.native-switch { border: 1px solid #34415b; background: #121e30; color: #b2c2d6; cursor: pointer;
+  border-radius: 14px; min-height: 116px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 9px; padding: 12px; text-align: center; }
+.native-switch.on { border-color: #26895b; background: #12342c; color: #52e49f; }
+.native-switch span { font-size: 24px; font-weight: 900; }
+.native-switch strong { font-size: 12px; }
+.native-switch small { font-size: 10px; }
+.native-switch:disabled { opacity: .5; cursor: not-allowed; }
+.native-open { display: flex; width: 100%; margin-top: 12px; background: #123a2c; color: #6df2b4; border-color: #236447; }
+.native-alert { padding: 12px; border: 1px solid #94522e; border-radius: 12px; background: #302218; color: #ffd3a5; font-size: 12px; }
+.native-rule { border: 1px solid #2b3950; border-radius: 14px; padding: 13px; display: grid; gap: 12px; }
+.native-rule-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.native-weekdays { display: flex; flex-wrap: wrap; gap: 10px; }
+.native-log { overflow: auto; max-height: 400px; border: 1px solid #25324b; border-radius: 12px; padding: 12px; }
+.native-log pre { white-space: pre-wrap; word-break: break-word; font-size: 10px; border-bottom: 1px solid #26354d; }
+@media (max-width: 680px) {
+  .native-metrics,.native-power-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .native-grid { grid-template-columns: 1fr; }
+  .native-toolbar h2 { font-size: 17px; }
+  .native-tabs button { font-size: 11px; }
+}

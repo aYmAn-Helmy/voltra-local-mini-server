@@ -4,6 +4,7 @@ import { CirclePlus, LoaderCircle, Star, Trash2 } from "lucide-react";
 import { AuthError, api, getApiToken, setApiToken, subscribeEvents } from "./api";
 import { AddStripView, AutomationView, DashboardView, EnergyView, RoomsView, SettingsView } from "./views";
 import { AppHeader, BottomNav, ConfirmDialog, Modal } from "./ui";
+import { StandaloneView } from "./standalone";
 import type { AutomationSnapshot, Overview, Strip, ViewName } from "./types";
 
 const emptyAutomation: AutomationSnapshot = { schedules: {}, rules: {}, queue: [] };
@@ -32,6 +33,7 @@ function updateOutletLocal(overview: Overview, mac: string, outlet: number, on: 
 
 export default function App() {
   const [view, setView] = useState<ViewName>("dashboard");
+  const [nativeMac, setNativeMac] = useState<string | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [automation, setAutomation] = useState<AutomationSnapshot>(emptyAutomation);
   const [search, setSearch] = useState("");
@@ -150,10 +152,18 @@ export default function App() {
   function requestSetAll(strip: Strip, on: boolean) {
     setConfirm({
       title: on ? "Turn all outlets on?" : "Turn all outlets off?",
-      message: `${strip.name} will switch all four outlets ${on ? "on" : "off"}. Commands are sent and verified one outlet at a time.`,
+      message: strip.device_type === "standalone_http"
+        ? `${strip.name} will use a single native ALL ${on ? "ON" : "OFF"} command.`
+        : `${strip.name} will switch all four outlets ${on ? "on" : "off"}. Commands are verified one outlet at a time.`,
       confirmLabel: on ? "Turn all on" : "Turn all off",
       danger: !on,
       action: async () => {
+        if (strip.device_type === "standalone_http") {
+          await api.setAllOutlets(strip.mac, on);
+          await refreshOverview();
+          notify(on ? "All outlets are on." : "All outlets are off.");
+          return;
+        }
         for (const channel of [1, 2, 3, 4]) {
           const current = strip.outlets?.find((item) => Number(item.channel) === channel);
           if (Boolean(current?.relay) === on) continue;
@@ -301,6 +311,16 @@ export default function App() {
               onToggleOutlet={setOutlet}
               onSetAll={requestSetAll}
               onStripSettings={setEditingStrip}
+              onOpenNative={(strip) => { setNativeMac(strip.mac); setView("standalone"); }}
+            />
+          )}
+          {view === "standalone" && nativeMac && (
+            <StandaloneView
+              key={nativeMac}
+              mac={nativeMac}
+              name={overview.strips.find(s => s.mac === nativeMac)?.name || nativeMac}
+              onRefresh={refreshOverview}
+              notify={notify}
             />
           )}
           {view === "energy" && <EnergyView overview={overview} notify={notify} />}

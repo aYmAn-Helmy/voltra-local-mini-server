@@ -4,9 +4,15 @@ Local-first server for LG U+ / TONLY MTTL-W01 smart power strips.
 
 ## Current release
 
-**v0.22.0**
+**v0.23.0**
 
 Key capabilities:
+
+- Firmware-native 2.1.x LAN HTTP pairing, fast direct outlet buttons (including one-shot ALL)
+- Voltra-managed device dashboard for local schedules, timers, protection, Wi-Fi, MQTT, labels, button locks, firmware status / optional OTA, and diagnostics
+- Device-owned schedule/auto-off settings are validated, sent once and verified persisted in device flash
+- Existing original TCP and MQTT controls remain supported
+
 
 - Standalone MTTL-W01 firmware 2.1.x over authenticated LAN-only MQTT
 - CasaOS one-command Mosquitto installation with persistent storage and automatic credential generation

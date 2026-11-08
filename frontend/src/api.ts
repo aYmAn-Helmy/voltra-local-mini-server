@@ -71,6 +71,39 @@ export const api = {
       body: JSON.stringify({ minutes }),
     }),
 
+  pairNative: (ip: string) =>
+    request<{ mac: string; ip: string; paired: boolean }>(`${API}/standalone/pair`, {
+      method: "POST", body: JSON.stringify({ ip }),
+    }),
+  nativeDetails: (mac: string) => request(`${API}/standalone/${encodeURIComponent(mac)}/details`),
+  nativeLive: (mac: string) => request(`${API}/standalone/${encodeURIComponent(mac)}/live`),
+  nativeLogs: (mac: string) => request<{ events: Record<string, unknown>[] }>(`${API}/standalone/${encodeURIComponent(mac)}/logs`),
+  nativeConfig: (mac: string, value: Record<string, unknown>) =>
+    request(`${API}/standalone/${encodeURIComponent(mac)}/config`, {
+      method: "POST", body: JSON.stringify(value),
+    }),
+  nativeControl: (mac: string, channel: number, on: boolean) =>
+    request(`${API}/standalone/${encodeURIComponent(mac)}/control`, {
+      method: "POST", body: JSON.stringify({ channel, on }),
+    }),
+  setAllOutlets: (mac: string, on: boolean) =>
+    request(`${API}/strips/${encodeURIComponent(mac)}/all/state`, {
+      method: "POST", body: JSON.stringify({ on }),
+    }),
+  nativeScan: (mac: string, trigger: boolean) =>
+    request<{ pending: boolean; networks: Array<{ ssid_hex: string; rssi: number; security: number }> }>(
+      `${API}/standalone/${encodeURIComponent(mac)}/scan`, trigger ? { method: "POST" } : undefined),
+  nativeWifi: (mac: string, ssid: string, password: string) =>
+    request(`${API}/standalone/${encodeURIComponent(mac)}/wifi`, {
+      method: "POST", body: JSON.stringify({ ssid, password }),
+    }),
+  nativeOta: (mac: string, file: File) =>
+    request(`${API}/standalone/${encodeURIComponent(mac)}/ota`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-mttl-fwr", "X-Voltra-OTA-Confirm": mac },
+      body: file,
+    }),
+
   adoptStrip: (mac: string, name: string) =>
     request(`${API}/strips/${encodeURIComponent(mac)}/adopt`, {
       method: "POST",

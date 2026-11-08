@@ -1,5 +1,6 @@
 export type ViewName =
   | "dashboard"
+  | "standalone"
   | "energy"
   | "automation"
   | "rooms"
@@ -9,6 +10,8 @@ export type ViewName =
 export type Outlet = {
   channel: number;
   relay?: boolean | null;
+  name?: string | null;
+  button_locked?: boolean;
   power_w?: number | null;
   energy_kwh?: number | null;
   current_a?: number | null;
@@ -32,7 +35,7 @@ export type Strip = {
   state: string;
   model?: string | null;
   firmware_version?: string | null;
-  device_type?: "original_tcp" | "standalone_mqtt";
+  device_type?: "original_tcp" | "standalone_mqtt" | "standalone_http";
   total_energy_kwh?: number | null;
   last_ip?: string | null;
   last_seen_at?: string | null;

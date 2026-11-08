@@ -124,7 +124,12 @@ class ConfigStore:
             current["last_seen_at"] = now
             current["model"] = snapshot.get("model")
             current["firmware_version"] = snapshot.get("firmware_version")
-            current["device_type"] = snapshot.get("device_type") or current.get("device_type") or "original_tcp"
+            incoming_type = snapshot.get("device_type") or "original_tcp"
+            # Pairing an IP wins over MQTT auto-discovery after server restart.
+            # MQTT only carries telemetry; the paired HTTP identity enables
+            # firmware-native control and on-device schedule editing.
+            if not (current.get("device_type") == "standalone_http" and incoming_type == "standalone_mqtt"):
+                current["device_type"] = incoming_type
             remote = str(snapshot.get("remote_address") or "")
             if remote:
                 current["last_ip"] = remote.rsplit(":", 1)[0] if ":" in remote else remote

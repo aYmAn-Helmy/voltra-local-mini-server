@@ -20,6 +20,7 @@ from .provisioner import ProvisioningError, provision_device
 from .security import RemoteAccessSecurity
 from .store import ConfigStore
 from .tcp_server import MTTLServer
+from .standalone_http import FirmwareHTTPError, HTTPStandalone, clean_mac
 
 # Backward-compatible low-level device API.
 _DEVICE_RE = re.compile(r"^/api/devices/([^/]+)$")
@@ -31,6 +32,8 @@ _ACTION_RE = re.compile(r"^/api/devices/([^/]+)/outlets/([1-4])/(on|off)$")
 _V_STRIP_RE = re.compile(r"^/voltra/api/strips/([^/]+)$")
 _V_STRIP_STATE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/state$")
 _V_STRIP_TIMER_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/timer$")
+_V_NATIVE_RE = re.compile(r"^/voltra/api/standalone/([0-9a-fA-F]{12})/(details|live|scan|config|control|wifi|firmware|ota|logs)$")
+_V_ALL_RE = re.compile(r"^/voltra/api/strips/([^/]+)/all/state$")
 _V_STRIP_ADOPT_RE = re.compile(r"^/voltra/api/strips/([^/]+)/adopt$")
 _V_STRIP_ENABLED_RE = re.compile(r"^/voltra/api/strips/([^/]+)/enabled$")
 _V_STRIP_IGNORE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/ignore$")
@@ -100,6 +103,29 @@ class APIHandler(BaseHTTPRequestHandler):
 
             if path == "/voltra/api/overview":
                 return self._json(200, self.app.overview())
+            if path == "/voltra/api/standalone/capabilities":
+                return self._json(200, {"http_native": True, "firmware": "2.1.x"})
+            match = _V_NATIVE_RE.match(path)
+            if match:
+                mac, action = match.groups()
+                self.app.store.require_strip_controllable(mac)
+                if not self.app.standalone or not self.app.standalone.has_device(mac):
+                    return self._json(400, {"error": "device has no native HTTP pairing"})
+                if action == "details":
+                    return self._json(200, self.app.standalone.details(mac))
+                if action == "live":
+                    return self._json(200, self.app.standalone.live(mac))
+                if action == "scan":
+                    return self._json(200, self.app.standalone.scan(mac))
+                if action == "firmware":
+                    return self._json(200, self.app.standalone.firmware_status(mac))
+                if action == "logs":
+                    items = self.app.audit.recent(200) if self.app.audit else []
+                    relevant = [x for x in items if x.get("mac") == mac or
+                                (isinstance(x.get("details"), dict) and x["details"].get("mac") == mac)]
+                    return self._json(200, {"events": relevant[-100:],
+                        "note": "Device native UI logs are browser-local; Voltra records its own actions."})
+                return self._json(405, {"error": "use POST for this operation"})
             if path == "/voltra/api/automation":
                 return self._json(200, self.app.automation.snapshot() if self.app.automation else {"schedules": {}, "rules": {}, "queue": []})
             if path == "/voltra/api/scenes":
@@ -163,6 +189,10 @@ class APIHandler(BaseHTTPRequestHandler):
             return self._json(404, {"error": "not found"})
         except KeyError as exc:
             return self._json(404, {"error": str(exc)})
+        except FirmwareHTTPError as exc:
+            return self._json(502, {"error": str(exc)})
+        except (ValueError, TimeoutError) as exc:
+            return self._json(400, {"error": str(exc)})
         except PermissionError as exc:
             return self._json(401, {"error": str(exc)})
         except Exception as exc:
@@ -192,14 +222,75 @@ class APIHandler(BaseHTTPRequestHandler):
             if match:
                 return self._json(200, self.app.mttl.get(_decoded(match.group(1))).set_outlet(int(match.group(2)), match.group(3) == "on"))
 
+            if path == "/voltra/api/standalone/pair":
+                if not self.app.standalone:
+                    return self._json(503, {"error": "native standalone integration disabled"})
+                body = self._read_json()
+                return self._json(201, self.app.standalone.pair(body.get("ip")))
+            match = _V_ALL_RE.match(path)
+            if match:
+                body = self._read_json()
+                on = body.get("on")
+                if type(on) is not bool:
+                    return self._json(400, {"error": "on must be boolean"})
+                mac = _decoded(match.group(1))
+                self.app.store.require_strip_controllable(mac)
+                device = self.app.mttl.get(mac)
+                if hasattr(device, "set_all"):
+                    return self._json(200, device.set_all(on))
+                # Original TCP protocol retains its existing one-outlet-at-a-time behavior.
+                return self._json(400, {"error": "native all-outlet command requires HTTP standalone"})
+            match = _V_NATIVE_RE.match(path)
+            if match:
+                mac, action = match.groups()
+                self.app.store.require_strip_controllable(mac)
+                native = self.app.standalone
+                if not native or not native.has_device(mac):
+                    return self._json(400, {"error": "device is not paired for native HTTP"})
+                if action == "config":
+                    return self._json(200, native.patch(mac, self._read_json()))
+                if action == "control":
+                    body = self._read_json()
+                    channel, on = body.get("channel"), body.get("on")
+                    if type(channel) is not int or not 0 <= channel <= 4 or type(on) is not bool:
+                        return self._json(400, {"error": "channel must be 0..4 and on boolean"})
+                    return self._json(200, native.control(mac, channel, on))
+                if action == "wifi":
+                    body = self._read_json()
+                    return self._json(202, native.wifi(mac, body.get("ssid"), body.get("password")))
+                if action == "scan":
+                    return self._json(202, native.scan(mac, trigger=True))
+                if action == "ota":
+                    if self.headers.get("X-Voltra-OTA-Confirm", "") != mac:
+                        return self._json(400, {"error": "explicit device MAC confirmation required"})
+                    if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/x-mttl-fwr":
+                        return self._json(415, {"error": "FWR binary content type required"})
+                    raw_length = self.headers.get("Content-Length", "")
+                    if not raw_length.isdecimal() or not 44 <= int(raw_length) <= 0x6A014:
+                        return self._json(413, {"error": "firmware file must be a valid-sized FWR binary"})
+                    data = self.rfile.read(int(raw_length))
+                    if len(data) != int(raw_length):
+                        return self._json(400, {"error": "incomplete firmware upload"})
+                    return self._json(200, native.ota(mac, data))
+                return self._json(405, {"error": "this operation is read-only"})
             if path == "/voltra/api/schedules":
                 if not self.app.automation:
                     return self._json(503, {"error": "automation disabled"})
-                return self._json(201, self.app.automation.create_schedule(self._read_json()))
+                data = self._read_json()
+                mac = self.app.store.normalize_mac(str(data.get("mac") or ""))
+                strip = self.app.store.strip(mac) or {}
+                if strip.get("device_type") == "standalone_http":
+                    return self._json(400, {"error": "This strip uses on-device schedules. Open Native controls > Scheduler instead."})
+                return self._json(201, self.app.automation.create_schedule(data))
             if path == "/voltra/api/countdown":
                 if not self.app.automation:
                     return self._json(503, {"error": "automation disabled"})
-                return self._json(201, self.app.automation.create_countdown(self._read_json()))
+                data = self._read_json()
+                mac = self.app.store.normalize_mac(str(data.get("mac") or ""))
+                strip = self.app.store.strip(mac) or {}
+                if strip.get("device_type") == "standalone_http":
+                    return self._json(400, {"error": "This strip uses internal auto-off timers. Open Native controls > Timer."})
+                return self._json(201, self.app.automation.create_countdown(data))
             if path == "/voltra/api/scenes":
                 body = self._read_json()
                 scene_id = str(body.get("id") or "").strip()
@@ -300,6 +391,8 @@ class APIHandler(BaseHTTPRequestHandler):
             return self._json(404, {"error": str(exc)})
         except TimeoutError as exc:
             return self._json(504, {"error": str(exc)})
+        except FirmwareHTTPError as exc:
+            return self._json(502, {"error": str(exc)})
         except ProvisioningError as exc:
             return self._json(502, {"error": str(exc)})
         except (ValueError, json.JSONDecodeError) as exc:
@@ -563,11 +656,13 @@ class VoltraHTTPServer(ThreadingHTTPServer):
         audit=None,
         event_bus=None,
         rate_limit_per_minute: int = 60,
+        standalone: HTTPStandalone | None = None,
         api_token: str = "",
         trusted_proxy: str = "",
         public_origin: str = "",
     ):
         self.mttl = mttl
+        self.standalone = standalone
         self.store = store
         self.cors_origin = cors_origin
         self.automation = automation
@@ -798,6 +893,7 @@ def start_http(
     audit=None,
     event_bus=None,
     rate_limit_per_minute: int = 60,
+    standalone: HTTPStandalone | None = None,
     api_token: str = "",
     trusted_proxy: str = "",
     public_origin: str = "",
@@ -813,6 +909,7 @@ def start_http(
         audit=audit,
         event_bus=event_bus,
         rate_limit_per_minute=rate_limit_per_minute,
+        standalone=standalone,
         api_token=api_token,
         trusted_proxy=trusted_proxy,
         public_origin=public_origin,
