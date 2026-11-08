@@ -92,6 +92,15 @@ class StandaloneTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.adapter.get(self.mac)
 
+    def test_sensor_messages_are_coalesced_for_ui(self):
+        events = Mock()
+        self.adapter.event_bus = events
+        self.report("availability", "online")
+        events.publish.reset_mock()
+        for i in range(100):
+            self.report("power1", str(10 + i))
+        self.assertLessEqual(events.publish.call_count, 1)
+
     def test_both_transports_available(self):
         self.report("availability", "online")
         hub = DeviceManager(DummyTCP(), self.adapter)

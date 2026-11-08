@@ -127,15 +127,23 @@ class StandaloneMQTT:
         created = False
         with self._cv:
             if mac not in self._devices:
-                self._devices[mac] = {"available": False, "fields": {}, "last_seen_at": None, "last_mono": 0}
+                self._devices[mac] = {"available": False, "fields": {}, "last_seen_at": None,
+                                      "last_mono": 0, "event_mono": 0}
                 created = True
             item = self._devices[mac]
+            old_value = item["available"] if metric == "availability" else item["fields"].get(metric)
             if metric == "availability":
                 item["available"] = result
             else:
                 item["fields"][metric] = result
             item["last_seen_at"] = datetime.now(timezone.utc).isoformat()
             item["last_mono"] = time.monotonic()
+            # Several strips stream telemetry frequently. Coalesce UI refreshes,
+            # but always emit changed relay/availability reports.
+            publish_event = (metric in ("availability", "all", "sw1", "sw2", "sw3", "sw4")
+                             and old_value != result) or (item["last_mono"] - item["event_mono"] >= 3)
+            if publish_event:
+                item["event_mono"] = item["last_mono"]
             self._cv.notify_all()
         if created and self.on_device_seen:
             try:
@@ -143,7 +151,7 @@ class StandaloneMQTT:
                                      "firmware_version": "Standalone 2.1.x"})
             except Exception as exc:
                 print(f"[MQTT] registration failed: {exc}")
-        if self.event_bus:
+        if self.event_bus and publish_event:
             self.event_bus.publish("device_state", mac=mac)
 
     def snapshot(self, mac):
