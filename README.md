@@ -4,9 +4,14 @@ Local-first server for LG U+ / TONLY MTTL-W01 smart power strips.
 
 ## Current release
 
-**v0.21.0**
+**v0.22.0**
 
 Key capabilities:
+
+- Standalone MTTL-W01 firmware 2.1.x over authenticated LAN-only MQTT
+- CasaOS one-command Mosquitto installation with persistent storage and automatic credential generation
+- Mixed original TCP + standalone MQTT devices and on-device auto-off timer editing (web/mobile)
+- See `docs/standalone-mqtt.md` for rollout instructions and safety constraints
 
 - Native TCP control on port 10086
 - Reliable provisioning with independent setup connections and retries

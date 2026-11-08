@@ -135,8 +135,23 @@ jobs:
         run: docker compose -f docker-compose.casaos.yml config >/dev/null
       - name: Prepare CasaOS data path
         run: sudo mkdir -p /DATA/AppData/Voltra/data
-      - name: Build and start CasaOS local image
-        run: docker compose -f docker-compose.casaos.build.yml up -d --build
+      - name: Install Voltra and secured Mosquitto together
+        run: sudo CI=true bash casaos/install.sh
+      - name: Verify broker-to-Voltra discovery (real MQTT)
+        run: |
+          sudo bash -c '
+            set -eu
+            . ./.env.casaos
+            docker exec voltra-mosquitto mosquitto_pub -h 127.0.0.1 -p 1883 -u "$VOLTRA_MQTT_DEVICE_USERNAME" -P "$VOLTRA_MQTT_DEVICE_PASSWORD" -t voltra/standalone/001122aabbcc/availability -m online -r
+            for i in $(seq 1 20); do
+              if curl -fsS -H "Authorization: Bearer $VOLTRA_API_TOKEN" http://127.0.0.1:8086/voltra/api/overview | grep -q 001122AABBCC; then
+                echo "MQTT device received by Voltra"
+                exit 0
+              fi
+              sleep 1
+            done
+            exit 1
+          '
       - name: Wait for Voltra
         run: |
           for i in {1..40}; do
@@ -147,10 +162,10 @@ jobs:
           done
           docker compose -f docker-compose.casaos.build.yml logs
           exit 1
-      - name: Verify API without token
-        run: curl --fail --silent http://127.0.0.1:8086/api/status >/dev/null
-      - name: Verify React dashboard
-        run: curl --fail --silent http://127.0.0.1:8086/voltra/ | grep -q '<div id="root"></div>'
+      - name: Verify authenticated API and React dashboard
+        run: |
+          sudo bash -c '. ./.env.casaos; curl --fail --silent -H "Authorization: Bearer $VOLTRA_API_TOKEN" http://127.0.0.1:8086/api/status >/dev/null'
+          curl --fail --silent http://127.0.0.1:8086/voltra/ | grep -q '<div id="root"></div>'
       - name: Verify strip TCP port
         run: python -c "import socket; s=socket.create_connection(('127.0.0.1',10086),2); s.close()"
       - name: Stop CasaOS test

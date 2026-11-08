@@ -27,6 +27,8 @@ MQTT_ROOT="/DATA/AppData/Voltra/mosquitto"
 mkdir -p "$MQTT_ROOT/config" "$MQTT_ROOT/data"
 chmod 700 "$MQTT_ROOT/config"
 chmod 700 "$MQTT_ROOT/data"
+# The broker process runs as UID 1883 and must own the host directories.
+chown -R 1883:1883 "$MQTT_ROOT/config" "$MQTT_ROOT/data"
 
 # Preserve the original Voltra data before replacing the container.
 BACKUP_DIR="/DATA/AppData/Voltra/backups"
@@ -38,7 +40,7 @@ if [ -d "$DATA_DIR" ] && find "$DATA_DIR" -mindepth 1 -print -quit | grep -q .; 
   echo "Backed up existing Voltra data to $BACKUP_FILE"
 fi
 
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+if [ "${CI:-}" != "true" ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "Updating Voltra source from origin/main..."
   git fetch origin main
   git pull --ff-only origin main
