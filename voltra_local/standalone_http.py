@@ -73,7 +73,7 @@ def _request(ip: str, path: str, method: str = "GET", body: bytes | None = None,
         if not isinstance(result, dict):
             raise FirmwareHTTPError("invalid firmware JSON")
         return result
-    except (TimeoutError, ConnectionError, OSError) as exc:
+    except (TimeoutError, ConnectionError, OSError, http.client.HTTPException) as exc:
         if isinstance(exc, FirmwareHTTPError):
             raise
         raise FirmwareHTTPError(f"device HTTP unavailable at {ip}") from exc
@@ -115,6 +115,7 @@ class HTTPStandaloneSession:
         timers[channel - 1] = minutes
         self.manager.patch(self.mac, {"timer_minutes": timers,
                                        "revision": details["config"]["revision"]})
+        self.manager.poll_one(self.mac)
         return self.snapshot()
 
 
@@ -161,6 +162,8 @@ class HTTPStandalone:
             "device_type": "standalone_http"
         })
         self.poll_one(mac)
+        if self.audit:
+            self.audit.append("standalone", "device_paired", mac=mac, ip=ip)
         return {"mac": mac, "ip": ip, "firmware_version": version["version"], "paired": True}
 
     def _check(self, ip, mac):
@@ -297,6 +300,9 @@ class HTTPStandalone:
                     snapshot = self.poll_one(mac)
                     channels = snapshot["outlets"] if channel == 4 else [snapshot["outlets"][channel]]
                     if all(item.get("relay") is on for item in channels):
+                        if self.audit:
+                            self.audit.append("standalone", "relay_confirmed",
+                                              mac=clean_mac(mac), channel=channel, on=on)
                         return snapshot
                 except (FirmwareHTTPError, KeyError):
                     pass
@@ -407,6 +413,8 @@ class HTTPStandalone:
             body = urlencode({"ssid": ssid, "password": password}).encode("ascii")
             result = self._safe_request(mac, "/api/wifi", "POST", body, 
                                         {"Content-Type": "application/x-www-form-urlencoded"}, 4.0)
+            if self.audit:
+                self.audit.append("standalone", "wifi_reconfigure", mac=clean_mac(mac))
             return result
 
     def firmware_status(self, mac):
@@ -424,5 +432,9 @@ class HTTPStandalone:
             if status.get("ota_ready") is not True:
                 raise ValueError("firmware does not allow OTA uploads")
             ip = self._target(mac)
-            return self.http(ip, "/api/firmware/upload", "POST", data,
-                             {"Content-Type": "application/x-mttl-fwr"}, 155.0)
+            response = self.http(ip, "/api/firmware/upload", "POST", data,
+                                 {"Content-Type": "application/x-mttl-fwr"}, 155.0)
+            if self.audit:
+                self.audit.append("standalone", "firmware_upload", mac=clean_mac(mac),
+                                  size_bytes=len(data), activated=response.get("activated") is True)
+            return response
