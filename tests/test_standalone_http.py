@@ -181,5 +181,97 @@ class NativeFirmwareIntegrationTests(unittest.TestCase):
             self.native.control(MAC, 0, True)
 
 
+
+class NativeHTTPAPITests(unittest.TestCase):
+    def setUp(self):
+        from threading import Thread
+        from voltra_local.device_manager import DeviceManager
+        from voltra_local.http_api import VoltraHTTPServer
+
+        class EmptyTCP:
+            def list_devices(self):
+                return []
+
+            def get(self, mac):
+                raise KeyError(mac)
+
+        self.tmp = tempfile.TemporaryDirectory()
+        self.store = ConfigStore(Path(self.tmp.name) / "state.json")
+        self.mock = FirmwareStub()
+        self.native = HTTPStandalone(self.store, http=self.mock)
+        self.api_token = "tests-only-" + ("x" * 40)
+        self.server = VoltraHTTPServer(
+            ("127.0.0.1", 0), DeviceManager(EmptyTCP(), standalone=self.native),
+            self.store, api_token=self.api_token, standalone=self.native,
+        )
+        self.thread = Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+        self.root = f"http://127.0.0.1:{self.server.server_address[1]}"
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=3)
+        self.tmp.cleanup()
+
+    def call(self, path, payload=None, authenticated=True):
+        from urllib.request import Request, urlopen
+        from urllib.error import HTTPError
+        headers = {"Content-Type": "application/json"}
+        if authenticated:
+            headers["Authorization"] = "Bearer " + self.api_token
+        req = Request(self.root + path,
+                      data=(json.dumps(payload).encode("utf-8") if payload is not None else None),
+                      headers=headers)
+        try:
+            with urlopen(req, timeout=5) as response:
+                return response.status, json.load(response)
+        except HTTPError as exc:
+            return exc.code, json.loads(exc.read().decode("utf-8"))
+
+    def test_auth_adopt_and_flash_schedule_via_api(self):
+        address = "/voltra/api/standalone"
+        code, _ = self.call(address + "/pair", {"ip": IP}, authenticated=False)
+        self.assertEqual(code, 401)
+        code, created = self.call(address + "/pair", {"ip": IP})
+        self.assertEqual(code, 201)
+        self.assertEqual(created["mac"], MAC)
+        code, _ = self.call(address + "/" + MAC + "/details")
+        self.assertNotEqual(code, 200)  # pending cannot read config
+        self.store.adopt_strip(MAC)
+        code, details = self.call(address + "/" + MAC + "/details")
+        self.assertEqual(code, 200)
+        schedule = details["config"]["schedule"]
+        schedule["rules"][0] = {"minute": 1140, "mode": 129, "day": 0, "channel": 0, "on": 0}
+        code, saved = self.call(address + "/" + MAC + "/config", {
+            "schedule": schedule, "revision": details["config"]["revision"]
+        })
+        self.assertEqual(code, 200, saved)
+        self.assertEqual(saved["schedule"]["rules"][0]["minute"], 1140)
+        code, _ = self.call("/voltra/api/schedules", {
+            "mac": MAC, "outlet": 1, "on": True,
+            "time": "19:00", "days": [0, 1, 2, 3, 4, 5, 6]
+        })
+        self.assertEqual(code, 503 if self.server.automation is None else 400)
+
+    def test_api_relay_uses_firmware_channel_index(self):
+        address = "/voltra/api/standalone"
+        self.call(address + "/pair", {"ip": IP})
+        self.store.adopt_strip(MAC)
+        code, snap = self.call(f"/voltra/api/strips/{MAC}/outlets/1/state", {"on": True})
+        self.assertEqual(code, 200, snap)
+        self.assertTrue(snap["outlets"][0]["relay"])
+        self.assertEqual(
+            [r[2] for r in self.mock.requests if r[0] == "/api/control"][-1],
+            bytes([0, 1]),
+        )
+        code, snap = self.call(f"/voltra/api/strips/{MAC}/all/state", {"on": False})
+        self.assertEqual(code, 200, snap)
+        self.assertEqual(
+            [r[2] for r in self.mock.requests if r[0] == "/api/control"][-1],
+            bytes([4, 0]),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
