@@ -276,11 +276,21 @@ class APIHandler(BaseHTTPRequestHandler):
             if path == "/voltra/api/schedules":
                 if not self.app.automation:
                     return self._json(503, {"error": "automation disabled"})
-                return self._json(201, self.app.automation.create_schedule(self._read_json()))
+                data = self._read_json()
+                mac = self.app.store.normalize_mac(str(data.get("mac") or ""))
+                strip = self.app.store.strip(mac) or {}
+                if strip.get("device_type") == "standalone_http":
+                    return self._json(400, {"error": "This strip uses on-device schedules. Open Native controls > Scheduler instead."})
+                return self._json(201, self.app.automation.create_schedule(data))
             if path == "/voltra/api/countdown":
                 if not self.app.automation:
                     return self._json(503, {"error": "automation disabled"})
-                return self._json(201, self.app.automation.create_countdown(self._read_json()))
+                data = self._read_json()
+                mac = self.app.store.normalize_mac(str(data.get("mac") or ""))
+                strip = self.app.store.strip(mac) or {}
+                if strip.get("device_type") == "standalone_http":
+                    return self._json(400, {"error": "This strip uses internal auto-off timers. Open Native controls > Timer."})
+                return self._json(201, self.app.automation.create_countdown(data))
             if path == "/voltra/api/scenes":
                 body = self._read_json()
                 scene_id = str(body.get("id") or "").strip()

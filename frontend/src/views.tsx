@@ -58,7 +58,7 @@ function activeStrips(overview: Overview) {
 
 function targetOptions(overview: Overview) {
   return activeStrips(overview)
-    .filter((strip) => strip.enabled && strip.state === "active")
+    .filter((strip) => strip.enabled && strip.state === "active" && strip.device_type !== "standalone_http")
     .flatMap((strip) =>
       [1, 2, 3, 4].map((outlet) => ({
         value: `${strip.mac}:${outlet}`,
@@ -396,7 +396,7 @@ export function AutomationView({
         <div>
           <span className="eyebrow">LOCAL AUTOMATION</span>
           <h2>Automation</h2>
-          <p>Voltra-managed schedules need this server. Standalone firmware timers are saved on the device and run without Voltra.</p>
+          <p>This page schedules original TCP and MQTT-only devices. For Native HTTP strips, open each strip's Device control → Scheduler/Timer to save plans in its own flash.</p>
         </div>
         <span className="count-badge">{schedules.length + rules.length}</span>
       </section>

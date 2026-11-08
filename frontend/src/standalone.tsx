@@ -290,6 +290,7 @@ export function StandaloneView({ mac, name, onRefresh, notify }: {
       {tab === "scheduler" && <section className="surface-card native-form">
         <div className="card-title-row"><div><span className="eyebrow">FLASH-RESIDENT SCHEDULER</span><h3>Scheduler</h3></div><CalendarClock size={20}/></div>
         <p className="card-copy">Eight rules supported: Daily, Weekly, Monthly date, Last day of month. Clock requires NTP. DST is manual; missed times are skipped.</p>
+        {!status?.unix_ms && <div className="native-alert">Device clock is not synchronized. Connect the strip to Wi-Fi/NTP before relying on calendar schedules.</div>}
         <label><span>Timezone (minutes east of UTC)</span>
           <select value={schedule.timezone} onChange={e => setSchedule(old => ({ ...old, timezone: Number(e.target.value) }))}>
             {Array.from({length: 105}, (_, i) => -720 + i * 15).map(t => <option key={t} value={t}>UTC{t < 0 ? "-" : "+"}{String(Math.floor(Math.abs(t) / 60)).padStart(2,"0")}:{String(Math.abs(t) % 60).padStart(2,"0")}</option>)}
