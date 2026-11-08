@@ -54,8 +54,8 @@ class TelemetryStore:
                 "mac": str(mac),
                 "voltage_v": device.get("voltage_v"),
                 "wifi_rssi_dbm": device.get("wifi_rssi_dbm"),
-                "total_power_w": round(sum(float(x.get("power_w") or 0) for x in outlets), 3),
-                "energy_kwh": round(sum(float(x.get("energy_kwh") or 0) for x in outlets), 6),
+                "total_power_w": round(float(device["total_power_w"]) if device.get("total_power_w") is not None else sum(float(x.get("power_w") or 0) for x in outlets), 3),
+                "energy_kwh": round(float(device["total_energy_kwh"]) if device.get("total_energy_kwh") is not None else sum(float(x.get("energy_kwh") or 0) for x in outlets), 6),
                 "outlets": [
                     {
                         "channel": x.get("channel"),

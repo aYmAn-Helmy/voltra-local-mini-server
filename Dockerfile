@@ -19,6 +19,9 @@ RUN apt-get update \
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
 COPY voltra_local /app/voltra_local
 COPY --from=frontend-build /frontend/dist /app/voltra_local/web
 

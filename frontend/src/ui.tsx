@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { api } from "./api";
 import {
   Activity,
   BarChart3,
@@ -269,6 +270,29 @@ export function StripCard({
   const canControl = strip.online && strip.enabled && strip.state === "active";
   const status = strip.state === "disabled" ? "DISABLED" : strip.online ? "ONLINE" : "OFFLINE";
   const health = strip.health?.status?.replaceAll("_", " ") || "unknown";
+  const [timerDrafts, setTimerDrafts] = useState<Record<number, number>>({});
+  const [timerBusy, setTimerBusy] = useState<number | null>(null);
+  const [timerNotice, setTimerNotice] = useState("");
+  const standalone = strip.device_type === "standalone_mqtt";
+  const timerEnabled = canControl && timerBusy === null;
+  async function saveLocalTimer(channel: number) {
+    const live = strip.outlets.find((item) => item.channel === channel);
+    const minutes = timerDrafts[channel] ?? live?.timer_minutes ?? 0;
+    if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440) {
+      setTimerNotice("Timer must be 0–1440 minutes.");
+      return;
+    }
+    setTimerBusy(channel);
+    setTimerNotice("");
+    try {
+      await api.setDeviceTimer(strip.mac, channel, minutes);
+      setTimerNotice(`Outlet ${channel}: saved on device.`);
+    } catch (error) {
+      setTimerNotice(error instanceof Error ? error.message : String(error));
+    } finally {
+      setTimerBusy(null);
+    }
+  }
   return (
     <article className={`strip-card ${strip.online ? "" : "offline"}`}>
       <div className="strip-head">
@@ -281,7 +305,7 @@ export function StripCard({
       </div>
 
       <div className="strip-meta">
-        <span>{strip.room || "Local strip"} · {health}</span>
+        <span>{strip.room || "Local strip"} · {standalone ? "Standalone MQTT" : "Original TCP"} · {health}</span>
         <strong>{Number(strip.total_power_w || 0).toFixed(1)} W</strong>
       </div>
 
@@ -311,6 +335,28 @@ export function StripCard({
         </button>
       </div>
 
+      {standalone && (
+        <section className="local-timers" aria-label="On-device auto-off timers">
+          <strong>Local auto-off timers <small>(saved on the strip, 0 disables)</small></strong>
+          <div className="local-timer-grid">
+            {[1, 2, 3, 4].map((channel) => {
+              const item = strip.outlets?.find((entry) => entry.channel === channel);
+              return (
+                <label key={channel}>
+                  <span>Outlet {channel} · {item?.timer_remaining_s == null ? "—" : `${item.timer_remaining_s}s left`}</span>
+                  <input type="number" min={0} max={1440} step={1}
+                    aria-label={`Outlet ${channel} timer minutes`}
+                    value={timerDrafts[channel] ?? item?.timer_minutes ?? 0}
+                    onChange={(event) => setTimerDrafts((old) => ({ ...old, [channel]: Number(event.target.value) }))}
+                    disabled={!timerEnabled} />
+                  <button type="button" onClick={() => void saveLocalTimer(channel)} disabled={!timerEnabled}>Save</button>
+                </label>
+              );
+            })}
+          </div>
+          <small aria-live="polite">{timerNotice || "Device schedules are managed on the strip web page."}</small>
+        </section>
+      )}
       <div className="diagnostic-row">
         <span><Gauge size={13} /> {strip.voltage_v == null ? "—" : `${Number(strip.voltage_v).toFixed(1)} V`}</span>
         <span><Wifi size={13} /> {strip.wifi_rssi_dbm == null ? "—" : `${strip.wifi_rssi_dbm} dBm`}</span>

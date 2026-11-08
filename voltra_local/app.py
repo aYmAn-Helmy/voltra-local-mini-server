@@ -12,6 +12,8 @@ from .demo_device import run_demo_device
 from .discovery import DiscoveryResponder
 from .events import EventBus
 from .http_api import start_http
+from .mqtt_adapter import StandaloneMQTT
+from .device_manager import DeviceManager
 from .store import ConfigStore
 from .tcp_server import MTTLServer
 from .telemetry import TelemetryStore
@@ -83,6 +85,19 @@ def main() -> None:
         on_device_seen=store.record_strip,
     )
     mttl.start()
+    mqtt_adapter = None
+    if env_bool("VOLTRA_MQTT_ENABLED"):
+        mqtt_adapter = StandaloneMQTT(
+            host=os.getenv("VOLTRA_MQTT_HOST", "mosquitto"),
+            port=env_int("VOLTRA_MQTT_PORT", 1883),
+            username=os.getenv("VOLTRA_MQTT_USERNAME", ""),
+            password=os.getenv("VOLTRA_MQTT_PASSWORD", ""),
+            prefix=os.getenv("VOLTRA_MQTT_TOPIC_PREFIX", "voltra"),
+            on_device_seen=store.record_strip,
+            event_bus=event_bus,
+        )
+        mqtt_adapter.start()
+    devices = DeviceManager(mttl, mqtt_adapter)
 
     if demo:
         threading.Thread(
@@ -93,17 +108,17 @@ def main() -> None:
         print("[DEMO] fake MTTL-W01 enabled")
 
     telemetry = TelemetryStore(data_dir / "telemetry.jsonl", sample_interval=telemetry_interval)
-    telemetry.start(mttl.list_devices)
+    telemetry.start(devices.list_devices)
 
     def automation_command(mac: str, outlet: int, on: bool, source: str) -> dict:
         store.require_strip_controllable(mac)
-        result = mttl.get(mac).set_outlet(outlet, on)
+        result = devices.get(mac).set_outlet(outlet, on)
         audit.append("automation", "command_executed", mac=mac, outlet=outlet, on=on, source=source)
         return result
 
     automation = AutomationEngine(
         data_dir / "automation.json",
-        snapshot_provider=mttl.list_devices,
+        snapshot_provider=devices.list_devices,
         command_executor=automation_command,
         audit=audit,
         event_bus=event_bus,
@@ -111,7 +126,7 @@ def main() -> None:
     automation.start()
 
     http = start_http(
-        mttl,
+        devices,
         http_bind,
         http_port,
         store=store,
@@ -146,6 +161,8 @@ def main() -> None:
         telemetry.stop()
         http.shutdown()
         http.server_close()
+        if mqtt_adapter:
+            mqtt_adapter.stop()
         mttl.stop()
 
     signal.signal(signal.SIGINT, shutdown)

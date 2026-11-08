@@ -161,6 +161,17 @@ class VoltraApi {
         {'on': on},
       );
 
+  Future<Map<String, dynamic>> setDeviceTimer(
+    String mac,
+    int outlet,
+    int minutes,
+  ) =>
+      sendJson(
+        'POST',
+        '/voltra/api/strips/${Uri.encodeComponent(mac)}/outlets/$outlet/timer',
+        {'minutes': minutes},
+      );
+
   Future<Map<String, dynamic>> adoptStrip(String mac, String name) =>
       sendJson(
         'POST',

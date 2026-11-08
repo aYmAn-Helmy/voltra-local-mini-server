@@ -11,6 +11,10 @@ export type Outlet = {
   relay?: boolean | null;
   power_w?: number | null;
   energy_kwh?: number | null;
+  current_a?: number | null;
+  temperature_c?: number | null;
+  timer_minutes?: number | null;
+  timer_remaining_s?: number | null;
 };
 
 export type Health = {
@@ -28,6 +32,8 @@ export type Strip = {
   state: string;
   model?: string | null;
   firmware_version?: string | null;
+  device_type?: "original_tcp" | "standalone_mqtt";
+  total_energy_kwh?: number | null;
   last_ip?: string | null;
   last_seen_at?: string | null;
   voltage_v?: number | null;

@@ -1,7 +1,19 @@
 name: voltra
 
 services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: voltra-mosquitto
+    restart: unless-stopped
+    ports:
+      - "${VOLTRA_MQTT_HOST_BIND:-127.0.0.1}:1883:1883/tcp"
+    volumes:
+      - /DATA/AppData/Voltra/mosquitto/config:/mosquitto/config:ro
+      - /DATA/AppData/Voltra/mosquitto/data:/mosquitto/data
+
   voltra:
+    depends_on:
+      - mosquitto
     image: ghcr.io/ayman-helmy/voltra-local-mini-server:latest
     container_name: voltra
     restart: unless-stopped
@@ -24,6 +36,12 @@ services:
       VOLTRA_COMMAND_CONFIRM_DELAY: "${VOLTRA_COMMAND_CONFIRM_DELAY:-0.15}"
       VOLTRA_RATE_LIMIT_PER_MINUTE: "${VOLTRA_RATE_LIMIT_PER_MINUTE:-120}"
       VOLTRA_DATA_DIR: "/app/data"
+      VOLTRA_MQTT_ENABLED: "${VOLTRA_MQTT_ENABLED:-0}"
+      VOLTRA_MQTT_HOST: "mosquitto"
+      VOLTRA_MQTT_PORT: "1883"
+      VOLTRA_MQTT_USERNAME: "${VOLTRA_MQTT_USERNAME:-voltra}"
+      VOLTRA_MQTT_PASSWORD: "${VOLTRA_MQTT_PASSWORD:-}"
+      VOLTRA_MQTT_TOPIC_PREFIX: "${VOLTRA_MQTT_TOPIC_PREFIX:-voltra}"
     ports:
       - target: 8086
         published: "8086"
