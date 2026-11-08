@@ -162,6 +162,8 @@ jobs:
           done
           docker compose -f docker-compose.casaos.build.yml logs
           exit 1
+      - name: Verify one-command installation and password authentication
+        run: sudo bash casaos/check-mqtt.sh
       - name: Verify authenticated API and React dashboard
         run: |
           sudo bash -c '. ./.env.casaos; curl --fail --silent -H "Authorization: Bearer $VOLTRA_API_TOKEN" http://127.0.0.1:8086/api/status >/dev/null'
