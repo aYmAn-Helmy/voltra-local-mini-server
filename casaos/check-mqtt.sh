@@ -37,7 +37,12 @@ docker exec voltra-mosquitto mosquitto_pub -h 127.0.0.1 -p 1883 \
 curl -fsS --max-time 3 -H "Authorization: Bearer $VOLTRA_API_TOKEN" \
   http://127.0.0.1:8086/voltra/api/overview >/dev/null
 
-status="$(docker inspect --format '{{.State.Health.Status}}' voltra)"
+status="starting"
+for i in $(seq 1 40); do
+  status="$(docker inspect --format '{{.State.Health.Status}}' voltra)"
+  [ "$status" = "healthy" ] && break
+  sleep 1
+done
 if [ "$status" != "healthy" ]; then
   echo "Voltra container health status: $status" >&2
   exit 1
