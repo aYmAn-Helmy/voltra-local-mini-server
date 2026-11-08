@@ -32,7 +32,7 @@ _ACTION_RE = re.compile(r"^/api/devices/([^/]+)/outlets/([1-4])/(on|off)$")
 _V_STRIP_RE = re.compile(r"^/voltra/api/strips/([^/]+)$")
 _V_STRIP_STATE_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/state$")
 _V_STRIP_TIMER_RE = re.compile(r"^/voltra/api/strips/([^/]+)/outlets/([1-4])/timer$")
-_V_NATIVE_RE = re.compile(r"^/voltra/api/standalone/([0-9a-fA-F]{12})/(details|scan|config|control|wifi|firmware|ota|logs)$")
+_V_NATIVE_RE = re.compile(r"^/voltra/api/standalone/([0-9a-fA-F]{12})/(details|live|scan|config|control|wifi|firmware|ota|logs)$")
 _V_ALL_RE = re.compile(r"^/voltra/api/strips/([^/]+)/all/state$")
 _V_STRIP_ADOPT_RE = re.compile(r"^/voltra/api/strips/([^/]+)/adopt$")
 _V_STRIP_ENABLED_RE = re.compile(r"^/voltra/api/strips/([^/]+)/enabled$")
@@ -113,6 +113,8 @@ class APIHandler(BaseHTTPRequestHandler):
                     return self._json(400, {"error": "device has no native HTTP pairing"})
                 if action == "details":
                     return self._json(200, self.app.standalone.details(mac))
+                if action == "live":
+                    return self._json(200, self.app.standalone.live(mac))
                 if action == "scan":
                     return self._json(200, self.app.standalone.scan(mac))
                 if action == "firmware":
