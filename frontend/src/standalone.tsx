@@ -67,6 +67,7 @@ export function StandaloneView({ mac, name, onRefresh, notify }: {
   const [wifi, setWifi] = useState({ ssid: "", password: "" });
   const [firmware, setFirmware] = useState<File | null>(null);
   const [logs, setLogs] = useState<LogEvent[]>([]);
+  const [legacySchedules, setLegacySchedules] = useState(0);
 
   const reload = useCallback(async () => {
     setLoading(true); setError("");
@@ -86,7 +87,13 @@ export function StandaloneView({ mac, name, onRefresh, notify }: {
     finally { setLoading(false); }
   }, [mac, onRefresh]);
 
-  useEffect(() => { void reload(); }, [mac]); // Do not reload a dirty form on routine overview refresh.
+  useEffect(() => { void reload(); }, [mac]);
+  useEffect(() => {
+    void api.automation().then(snapshot => {
+      const schedules = Object.values(snapshot.schedules);
+      setLegacySchedules(schedules.filter(item => item.mac === mac && item.enabled !== false).length);
+    }).catch(() => setLegacySchedules(0));
+  }, [mac]); // Do not reload a dirty form on routine overview refresh.
   useEffect(() => {
     if (tab !== "power") return;
     let active = true;
@@ -291,6 +298,9 @@ export function StandaloneView({ mac, name, onRefresh, notify }: {
         <div className="card-title-row"><div><span className="eyebrow">FLASH-RESIDENT SCHEDULER</span><h3>Scheduler</h3></div><CalendarClock size={20}/></div>
         <p className="card-copy">Eight rules supported: Daily, Weekly, Monthly date, Last day of month. Clock requires NTP. DST is manual; missed times are skipped.</p>
         {!status?.unix_ms && <div className="native-alert">Device clock is not synchronized. Connect the strip to Wi-Fi/NTP before relying on calendar schedules.</div>}
+        {legacySchedules > 0 && <div className="native-alert">
+          This strip still has {legacySchedules} old Voltra server schedule(s). They are blocked to avoid duplicate commands. Delete them in Automation after recreating the schedules here on-device.
+        </div>}
         <label><span>Timezone (minutes east of UTC)</span>
           <select value={schedule.timezone} onChange={e => setSchedule(old => ({ ...old, timezone: Number(e.target.value) }))}>
             {Array.from({length: 105}, (_, i) => -720 + i * 15).map(t => <option key={t} value={t}>UTC{t < 0 ? "-" : "+"}{String(Math.floor(Math.abs(t) / 60)).padStart(2,"0")}:{String(Math.abs(t) % 60).padStart(2,"0")}</option>)}
