@@ -882,6 +882,52 @@ class StripCard extends StatelessWidget {
     return null;
   }
 
+  Future<void> _editLocalTimer(BuildContext context, int channel) async {
+    final current = outlet(channel)?['timer_minutes'];
+    final field = TextEditingController(text: '${current ?? 0}');
+    final minutes = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Outlet $channel auto-off timer'),
+        content: TextField(
+          controller: field,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Minutes (0–1440, 0 disables)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final parsed = int.tryParse(field.text.trim());
+              if (parsed != null && parsed >= 0 && parsed <= 1440) {
+                Navigator.pop(dialogContext, parsed);
+              }
+            },
+            child: const Text('Save on device'),
+          ),
+        ],
+      ),
+    );
+    field.dispose();
+    if (minutes == null) return;
+    try {
+      await controller.api?.setDeviceTimer(
+        strip['mac']?.toString() ?? '',
+        channel,
+        minutes,
+      );
+      await controller.refresh();
+      if (context.mounted) _snack(context, 'Timer saved on the strip.');
+    } catch (error) {
+      if (context.mounted) _snack(context, error.toString(), error: true);
+    }
+  }
+
   Future<void> _toggle(
     BuildContext context,
     int channel,
@@ -985,6 +1031,24 @@ class StripCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (strip['device_type'] == 'standalone_mqtt') ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 7,
+                runSpacing: 3,
+                children: List.generate(4, (index) {
+                  final channel = index + 1;
+                  final minutes = outlet(channel)?['timer_minutes'] ?? '—';
+                  return ActionChip(
+                    avatar: const Icon(Icons.timer_outlined, size: 16),
+                    label: Text('CH$channel: $minutes min'),
+                    onPressed: online && enabled
+                        ? () => _editLocalTimer(context, channel)
+                        : null,
+                  );
+                }),
+              ),
+            ],
             const SizedBox(height: 13),
             GridView.count(
               crossAxisCount: 2,

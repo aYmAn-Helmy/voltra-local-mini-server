@@ -393,7 +393,7 @@ export function AutomationView({
         <div>
           <span className="eyebrow">LOCAL AUTOMATION</span>
           <h2>Automation</h2>
-          <p>Schedules and timers keep running without Internet while the Voltra server is online.</p>
+          <p>Voltra-managed schedules need this server. Standalone firmware timers are saved on the device and run without Voltra.</p>
         </div>
         <span className="count-badge">{schedules.length + rules.length}</span>
       </section>
@@ -761,7 +761,7 @@ export function AddStripView({
         <div>
           <span className="eyebrow">ONBOARDING</span>
           <h2>Add strip</h2>
-          <p>Voltra automatically discovers strips that connect to TCP 10086.</p>
+          <p>Voltra discovers original TCP strips on port 10086 and standalone strips via local MQTT. Configure MQTT on the standalone device first.</p>
         </div>
         <span className="count-badge">{pending.length}</span>
       </section>

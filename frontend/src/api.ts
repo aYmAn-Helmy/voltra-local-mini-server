@@ -65,6 +65,12 @@ export const api = {
       body: JSON.stringify({ on }),
     }),
 
+  setDeviceTimer: (mac: string, outlet: number, minutes: number) =>
+    request(`${API}/strips/${encodeURIComponent(mac)}/outlets/${outlet}/timer`, {
+      method: "POST",
+      body: JSON.stringify({ minutes }),
+    }),
+
   adoptStrip: (mac: string, name: string) =>
     request(`${API}/strips/${encodeURIComponent(mac)}/adopt`, {
       method: "POST",
