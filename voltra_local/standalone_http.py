@@ -326,6 +326,15 @@ class HTTPStandalone:
                 result[label] = None
         return result
 
+    def live(self, mac):
+        self.poll_one(mac)
+        with self._lock:
+            current = self._cache.get(clean_mac(mac))
+            if not current:
+                raise KeyError("standalone device has no live data")
+            return {"device": dict(current["device"]), "status": dict(current["status"]),
+                    "snapshot": dict(current["snapshot"])}
+
     def scan(self, mac, trigger=False):
         ip = self._target(mac)
         self._check(ip, mac)
