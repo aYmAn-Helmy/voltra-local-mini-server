@@ -1,7 +1,19 @@
 name: voltra
 
 services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: voltra-mosquitto
+    restart: unless-stopped
+    ports:
+      - "${VOLTRA_MQTT_HOST_BIND:-127.0.0.1}:1883:1883/tcp"
+    volumes:
+      - /DATA/AppData/Voltra/mosquitto/config:/mosquitto/config:ro
+      - /DATA/AppData/Voltra/mosquitto/data:/mosquitto/data
+
   voltra:
+    depends_on:
+      - mosquitto
     build:
       context: .
       dockerfile: Dockerfile
@@ -24,6 +36,12 @@ services:
       VOLTRA_DIAGNOSTICS_INTERVAL: "${VOLTRA_DIAGNOSTICS_INTERVAL:-30}"
       VOLTRA_TELEMETRY_INTERVAL: "${VOLTRA_TELEMETRY_INTERVAL:-60}"
       VOLTRA_DATA_DIR: "/app/data"
+      VOLTRA_MQTT_ENABLED: "${VOLTRA_MQTT_ENABLED:-0}"
+      VOLTRA_MQTT_HOST: "mosquitto"
+      VOLTRA_MQTT_PORT: "1883"
+      VOLTRA_MQTT_USERNAME: "${VOLTRA_MQTT_USERNAME:-voltra}"
+      VOLTRA_MQTT_PASSWORD: "${VOLTRA_MQTT_PASSWORD:-}"
+      VOLTRA_MQTT_TOPIC_PREFIX: "${VOLTRA_MQTT_TOPIC_PREFIX:-voltra}"
     ports:
       - "8086:8086/tcp"
       - "10086:10086/tcp"
