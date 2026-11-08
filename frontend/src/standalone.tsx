@@ -57,6 +57,7 @@ export function StandaloneView({ mac, name, onRefresh, notify }: {
   const [error, setError] = useState("");
   const [names, setNames] = useState<string[]>([]);
   const [deviceName, setDeviceName] = useState("");
+  const [deviceLanguage, setDeviceLanguage] = useState(1);
   const [locks, setLocks] = useState(0);
   const [mqtt, setMqtt] = useState({ broker: "", port: 1883, user: "", topic: "mttl", enabled: false, password: "" });
   const [protection, setProtection] = useState<Protection>({ enabled: 7, temperature: 90, current: 16000, power: 3000 });
@@ -74,6 +75,7 @@ export function StandaloneView({ mac, name, onRefresh, notify }: {
       setDetails(data); setLive({ device: data.device, status: data.status });
       const config = data.config;
       setNames([...config.channels]); setDeviceName(config.device);
+      setDeviceLanguage(config.language);
       setLocks(config.button_lock); setProtection({ ...config.protection });
       setSchedule({ timezone: config.schedule.timezone, rules: config.schedule.rules.map(r => ({ ...r })) });
       setTimers([...config.timer_minutes]);
@@ -193,6 +195,11 @@ export function StandaloneView({ mac, name, onRefresh, notify }: {
         <div className="native-form">
           <h3>Device names and physical-button lock</h3>
           <label><span>Strip name</span><input value={deviceName} onChange={e => setDeviceName(e.target.value)} /></label>
+          <label><span>Firmware interface language</span>
+            <select value={deviceLanguage} onChange={e => setDeviceLanguage(Number(e.target.value))}>
+              <option value={1}>English</option><option value={0}>Korean</option>
+            </select>
+          </label>
           <div className="native-grid">
             {names.map((channel, i) => <label key={i}><span>Outlet {i + 1}</span><input value={channel}
               onChange={e => setNames(old => old.map((s, j) => i === j ? e.target.value : s))} /></label>)}
@@ -203,7 +210,7 @@ export function StandaloneView({ mac, name, onRefresh, notify }: {
               <span>Lock physical switch {i + 1}</span></label>)}
           </div>
           <button className="button primary" disabled={!editable} onClick={() => void save({ device: deviceName, channels: names,
-            button_lock: locks }, "Device name, channels, and physical-button locks saved to flash.")}>
+            button_lock: locks, language: deviceLanguage }, "Device names, language and physical-button locks saved in flash.")}>
             Save to device
           </button>
         </div>
