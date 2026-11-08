@@ -115,6 +115,9 @@ def main() -> None:
 
     def automation_command(mac: str, outlet: int, on: bool, source: str) -> dict:
         store.require_strip_controllable(mac)
+        meta = store.strip(mac) or {}
+        if meta.get("device_type") == "standalone_http" and source.startswith("schedule:"):
+            raise ValueError("legacy Voltra schedule is blocked for device-owned standalone firmware")
         result = devices.get(mac).set_outlet(outlet, on)
         audit.append("automation", "command_executed", mac=mac, outlet=outlet, on=on, source=source)
         return result
